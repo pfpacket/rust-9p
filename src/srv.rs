@@ -9,6 +9,9 @@ use serialize::*;
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::{self, Error, ErrorKind};
 use std::net::{TcpListener, TcpStream};
+use std::result;
+
+pub type Result<T> = result::Result<T, String>;
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
@@ -33,21 +36,21 @@ impl<'a> Request<'a> {
 ///
 /// NOTE: Defined as `Srv` in 9p.h of Plan 9.
 pub trait Filesystem {
-    fn rflush(&mut self, _: &Request)   -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rattach(&mut self, _: &Request)  -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rwalk(&mut self, _: &Request)    -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn ropen(&mut self, _: &Request)    -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rcreate(&mut self, _: &Request)  -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rread(&mut self, _: &Request)    -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rwrite(&mut self, _: &Request)   -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rclunk(&mut self, _: &Request)   -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rremove(&mut self, _: &Request)  -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rstat(&mut self, _: &Request)    -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
-    fn rwstat(&mut self, _: &Request)   -> Result<MsgBody, String> { Err(error::ENOSYS.to_owned()) }
+    fn rflush(&mut self, _: &Request)   -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rattach(&mut self, _: &Request)  -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rwalk(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn ropen(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rcreate(&mut self, _: &Request)  -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rread(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rwrite(&mut self, _: &Request)   -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rclunk(&mut self, _: &Request)   -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rremove(&mut self, _: &Request)  -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rstat(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
+    fn rwstat(&mut self, _: &Request)   -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
 }
 
 // return: (proto, addr:port)
-fn parse_proto(arg: &str) -> Result<(&str, String), ()> {
+fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
     let mut split = arg.split("!");
     let proto = try!(split.nth(0).ok_or(()));
     let addr  = try!(split.nth(0).ok_or(()));
@@ -111,7 +114,7 @@ impl<Fs: Filesystem> Server<Fs> {
             MsgType::Tremove    => self.fs.rremove(&Request::from(&msg)),
             MsgType::Tstat      => self.fs.rstat(&Request::from(&msg)),
             MsgType::Twstat     => self.fs.rwstat(&Request::from(&msg)),
-            _ => Err(format!("Client should not send {:?}", msg.typ)),
+            _ => Err(error::EPROTO.to_owned()),
         };
 
         match result {
@@ -120,7 +123,7 @@ impl<Fs: Filesystem> Server<Fs> {
         }
     }
 
-    fn rversion(&self, _res: &Request) -> Result<MsgBody, String> {
+    fn rversion(&self, _res: &Request) -> Result<MsgBody> {
         Ok(MsgBody::Rversion {
             msize: 8192,
             version: "9P2000".to_owned()
