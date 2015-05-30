@@ -1,0 +1,16 @@
+
+[package]
+name = "rust-9p"
+version = "0.0.1"
+authors = [ "afpacket <afpacket@gmail.com>" ]
+
+[lib]
+name = "rs9p"
+crate-type = ["rlib"]
+
+[dependencies]
+time = "*"
+log = "*"
+num = "*"
+enum_primitive = "*"
+byteorder = "*"
