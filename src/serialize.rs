@@ -7,12 +7,12 @@ extern crate byteorder;
 use fcall::*;
 use std::mem;
 use self::num::FromPrimitive;
-use std::io::{self, Read, Write, Cursor, BufWriter, ErrorKind};
+use std::io::{self, Read, Write, Cursor, BufWriter};
 use self::byteorder::{Result, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
-        Err(byteorder::Error::Io(io::Error::new(ErrorKind::$kind, $msg)))
+        Err(byteorder::Error::Io(io::Error::new(io::ErrorKind::$kind, $msg)))
     }
 }
 
@@ -97,18 +97,21 @@ impl Encodable for Qid {
 
 impl Encodable for Stat {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = try!(self.typ.encode(w));
-        bytes += try!(self.dev.encode(w));
-        bytes += try!(self.qid.encode(w));
-        bytes += try!(self.mode.encode(w));
-        bytes += try!(self.atime.encode(w));
-        bytes += try!(self.mtime.encode(w));
-        bytes += try!(self.length.encode(w));
-        bytes += try!(self.name.encode(w));
-        bytes += try!(self.uid.encode(w));
-        bytes += try!(self.gid.encode(w));
-        bytes += try!(self.muid.encode(w));
-        Ok(bytes)
+        let stat_size: u16 = self.size();
+        try!((stat_size + 2).encode(w));
+        try!(stat_size.encode(w));
+        try!(self.typ.encode(w));
+        try!(self.dev.encode(w));
+        try!(self.qid.encode(w));
+        try!(self.mode.encode(w));
+        try!(self.atime.encode(w));
+        try!(self.mtime.encode(w));
+        try!(self.length.encode(w));
+        try!(self.name.encode(w));
+        try!(self.uid.encode(w));
+        try!(self.gid.encode(w));
+        try!(self.muid.encode(w));
+        Ok(stat_size as usize + 4)
     }
 }
 
@@ -167,7 +170,7 @@ impl Encodable for Msg {
             &MsgBody::Rwstat                                                => {},
         };
 
-        let size = 4 + buf.len();
+        let size = mem::size_of::<u32>() + buf.len();
         let mut stream = BufWriter::new(w);
         try!(stream.write_u32::<LittleEndian>(size as u32));
         try!(stream.write_all(&buf));
@@ -225,6 +228,8 @@ impl Decodable for Qid {
 
 impl Decodable for Stat {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
+        let _: u16 = try!(Decodable::decode(r));
+        let _: u16 = try!(Decodable::decode(r));
         Ok(Stat {
             typ: try!(Decodable::decode(r)),    dev: try!(Decodable::decode(r)),
             qid: try!(Decodable::decode(r)),    mode: try!(Decodable::decode(r)),
@@ -388,6 +393,60 @@ fn msg_encode_decode1() {
 
     let mut readbuf = Cursor::new(buf);
     let actual = Decodable::decode(&mut readbuf);
+
+    assert_eq!(expected, actual.unwrap());
+}
+
+#[test]
+fn serialize_rstat() {
+    use std::fs;
+    use std::path;
+    use std::env;
+    use std::os::unix::fs::MetadataExt;
+
+    let path = path::Path::new("/tmp");
+    let attr = fs::metadata(path).unwrap();
+    let raw_attr = attr.as_raw();
+    let mut mode = raw_attr.mode() & 0o777;
+    if attr.is_dir() { mode |= dm::DIR }
+    let qid_type = if attr.is_dir() {
+        qt::DIR
+    } else {
+        qt::FILE
+    };
+
+    let stat = Stat {
+        typ: 0,
+        dev: raw_attr.dev() as u32,
+        qid: Qid {
+            typ: qid_type,
+            version: 0,
+            path: raw_attr.ino(),
+        },
+        mode: mode,
+        atime: raw_attr.atime() as u32,
+        mtime: raw_attr.mtime() as u32,
+        length: raw_attr.size() as u64,
+        name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+        uid: env::var("USER").unwrap(),
+        gid: env::var("USER").unwrap(),
+        muid: env::var("USER").unwrap(),
+    };
+
+    let expected = Msg {
+        typ: MsgType::Rstat,
+        tag: 1,
+        body: MsgBody::Rstat { stat: stat }
+    };
+
+    let mut buf = Vec::new();
+    let _ = expected.encode(&mut buf);
+
+    let mut readbuf = Cursor::new(buf);
+    let actual = Decodable::decode(&mut readbuf);
+
+    println!("rstat: expected: {:?}", expected);
+    println!("rstat: actual  : {:?}", actual);
 
     assert_eq!(expected, actual.unwrap());
 }

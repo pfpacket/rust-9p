@@ -4,18 +4,18 @@
 extern crate byteorder;
 
 use error;
+use serialize;
 use fcall::*;
-use serialize::*;
-use self::byteorder::{ReadBytesExt, WriteBytesExt};
-use std::io::{self, Error, ErrorKind};
-use std::net::{TcpListener, TcpStream};
+use std::io;
 use std::result;
+use std::net::{TcpListener, TcpStream};
+use self::byteorder::{ReadBytesExt, WriteBytesExt};
 
 pub type Result<T> = result::Result<T, String>;
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
-        Err(io::Error::new(ErrorKind::$kind, $msg))
+        Err(io::Error::new(io::ErrorKind::$kind, $msg))
     }
 }
 
@@ -74,7 +74,7 @@ impl<Fs: Filesystem> Server<Fs> {
         ));
 
         if proto != "tcp" {
-            return Err(Error::new(ErrorKind::InvalidInput, "Unsupported proto"));
+            return io_error!(InvalidInput, "Unsupported proto");
         }
 
         Ok(Server {
@@ -91,7 +91,7 @@ impl<Fs: Filesystem> Server<Fs> {
 
     fn handle_client(&mut self, mut stream: TcpStream) -> io::Result<()> {
         loop {
-            let msg = try!(read_msg(&mut stream));
+            let msg = try!(serialize::read_msg(&mut stream));
             try!(self.handle_message(msg, &mut stream));
         }
     }
@@ -99,11 +99,12 @@ impl<Fs: Filesystem> Server<Fs> {
     fn handle_message<Rw>(&mut self, msg: Msg, stream: &mut Rw) -> io::Result<()>
         where Rw: WriteBytesExt + ReadBytesExt
     {
-        debug!("Message received: {:?}", msg);
+        println!("[*] Message received: {:?}", msg);
 
         let result = match msg.typ {
             MsgType::Tversion   => self.rversion(&Request::from(&msg)),
-            MsgType::Tauth      => Err("Tauth not supported".to_owned()),
+            MsgType::Tauth      => Err(error::ECONNREFUSED2.to_owned()),
+            MsgType::Tflush     => self.fs.rflush(&Request::from(&msg)),
             MsgType::Tattach    => self.fs.rattach(&Request::from(&msg)),
             MsgType::Twalk      => self.fs.rwalk(&Request::from(&msg)),
             MsgType::Topen      => self.fs.ropen(&Request::from(&msg)),
@@ -117,10 +118,12 @@ impl<Fs: Filesystem> Server<Fs> {
             _ => Err(error::EPROTO.to_owned()),
         };
 
-        match result {
-            Ok(response) => self.response(stream, response, msg.tag),
-            Err(err) => self.rerror(stream, err, msg.tag)
-        }
+        let res_body = match result {
+            Ok(response) => response,
+            Err(err) => MsgBody::Rerror { ename: err }
+        };
+
+        self.response(stream, res_body, msg.tag)
     }
 
     fn rversion(&self, _res: &Request) -> Result<MsgBody> {
@@ -130,38 +133,30 @@ impl<Fs: Filesystem> Server<Fs> {
         })
     }
 
-    fn rerror<W: WriteBytesExt>(&self, stream: &mut W, err: String, tag: u16) -> io::Result<()> {
-        let rerror_msg = Msg {
-            typ: MsgType::Rerror,
-            tag: tag,
-            body: MsgBody::Rerror {
-                ename: err
-            }
-        };
-
-        try!(write_msg(stream, &rerror_msg));
-        Ok(())
-    }
-
     fn response<W: WriteBytesExt>(&self, stream: &mut W, res: MsgBody, tag: u16) -> io::Result<()> {
         let typ = match &res {
-            &MsgBody::Rflush => MsgType::Rflush,
             &MsgBody::Rversion { msize: _, version: _ } => MsgType::Rversion,
-            &MsgBody::Rattach { qid: _ } => MsgType::Rattach,
-            &MsgBody::Rwalk { wqids: _ } => MsgType::Rwalk,
-            &MsgBody::Ropen { qid: _, iounit: _ } => MsgType::Ropen,
-            &MsgBody::Rcreate { qid: _, iounit: _ } => MsgType::Rcreate,
-            &MsgBody::Rread { data: _ } => MsgType::Rread,
-            &MsgBody::Rwrite { count: _ } => MsgType::Rwrite,
-            &MsgBody::Rclunk => MsgType::Rclunk,
-            &MsgBody::Rremove => MsgType::Rremove,
-            &MsgBody::Rstat { stat: _ } => MsgType::Rstat,
-            &MsgBody::Rwstat => MsgType::Rwstat,
+            &MsgBody::Rauth { aqid: _ }                 => MsgType::Rauth,
+            &MsgBody::Rerror { ename: _ }               => MsgType::Rerror,
+            &MsgBody::Rflush                            => MsgType::Rflush,
+            &MsgBody::Rattach { qid: _ }                => MsgType::Rattach,
+            &MsgBody::Rwalk { wqids: _ }                => MsgType::Rwalk,
+            &MsgBody::Ropen { qid: _, iounit: _ }       => MsgType::Ropen,
+            &MsgBody::Rcreate { qid: _, iounit: _ }     => MsgType::Rcreate,
+            &MsgBody::Rread { data: _ }                 => MsgType::Rread,
+            &MsgBody::Rwrite { count: _ }               => MsgType::Rwrite,
+            &MsgBody::Rclunk                            => MsgType::Rclunk,
+            &MsgBody::Rremove                           => MsgType::Rremove,
+            &MsgBody::Rstat { stat: _ }                 => MsgType::Rstat,
+            &MsgBody::Rwstat                            => MsgType::Rwstat,
             _ => return io_error!(Other, "Try to send invalid message in this context"),
         };
 
         let response_msg = Msg { typ: typ, tag: tag, body: res };
-        try!(write_msg(stream, &response_msg));
+
+        println!("[*] Sending message: {:?}", response_msg);
+
+        try!(serialize::write_msg(stream, &response_msg));
         Ok(())
     }
 }

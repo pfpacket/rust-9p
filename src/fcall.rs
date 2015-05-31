@@ -87,6 +87,22 @@ pub struct Stat {
     pub muid: String
 }
 
+impl Stat {
+    pub fn size(&self) -> u16 {
+        use std::mem::{size_of, size_of_val};
+        (size_of_val(&self.typ) +
+        size_of_val(&self.dev) +
+        size_of_val(&self.qid) +
+        size_of_val(&self.mode) +
+        size_of_val(&self.atime) +
+        size_of_val(&self.mtime) +
+        size_of_val(&self.length) +
+        (size_of::<u16>() * 4) +
+        self.name.len() + self.uid.len() +
+        self.gid.len() + self.muid.len()) as u16
+    }
+}
+
 /// Data type used in Rread and Twrite
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Data(Vec<u8>);
