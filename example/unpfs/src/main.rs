@@ -5,7 +5,6 @@ extern crate rs9p;
 
 use std::{io, fs};
 use std::ffi::OsStr;
-use std::error::Error;
 use std::collections::HashMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -102,29 +101,29 @@ macro_rules! get_fid {
     }
 }
 
-impl rs9p::srv::Filesystem for Unpfs {
-    fn rflush(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
-        Ok(MsgBody::Rflush)
+impl rs9p::Filesystem for Unpfs {
+    fn rflush(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+        Ok(Fcall::Rflush)
     }
 
-    fn rattach(&mut self, req: &Request) -> rs9p::Result<MsgBody> {
+    fn rattach(&mut self, req: &Request) -> rs9p::Result<Fcall> {
         match req.ifcall {
-            &MsgBody::Tattach { fid, afid: _, uname: _, aname: _ } => {
+            &Fcall::Tattach { fid, afid: _, uname: _, aname: _ } => {
                 self.fids.insert(fid, Fid::new("/", &self.realroot));
             }, _ => unreachable!()
         };
 
         let attr = try!(fs::metadata(&self.realroot).or(strerror!(ENOENT)));
-        Ok(MsgBody::Rattach {
+        Ok(Fcall::Rattach {
             qid: Qid {
                 typ: qt::DIR, version: 0, path: attr.as_raw().ino()
             }
         })
     }
 
-    fn rwalk(&mut self, req: &Request) -> rs9p::Result<MsgBody> {
+    fn rwalk(&mut self, req: &Request) -> rs9p::Result<Fcall> {
         let (newfid, result_path, wqids) = match req.ifcall {
-            &MsgBody::Twalk { fid, newfid, ref wnames } => {
+            &Fcall::Twalk { fid, newfid, ref wnames } => {
                 let parent_fid = get_fid!(self, &fid);
                 let mut result_path = parent_fid.realpath.clone();
 
@@ -146,51 +145,51 @@ impl rs9p::srv::Filesystem for Unpfs {
         let fid = self.fid_from_realpath(result_path.to_str().unwrap());
         self.fids.insert(newfid, fid);
 
-        Ok(MsgBody::Rwalk { wqids: wqids })
+        Ok(Fcall::Rwalk { wqids: wqids })
     }
 
-    fn ropen(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
+    fn ropen(&mut self, _: &Request) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rcreate(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
+    fn rcreate(&mut self, _: &Request) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rread(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
+    fn rread(&mut self, _: &Request) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rwrite(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
+    fn rwrite(&mut self, _: &Request) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rclunk(&mut self, req: &Request) -> rs9p::Result<MsgBody> {
+    fn rclunk(&mut self, req: &Request) -> rs9p::Result<Fcall> {
         match req.ifcall {
-            &MsgBody::Tclunk { fid } => { self.fids.remove(&fid) },
+            &Fcall::Tclunk { fid } => { self.fids.remove(&fid) },
             _ => unreachable!(),
         };
-        Ok(MsgBody::Rclunk)
+        Ok(Fcall::Rclunk)
     }
 
-    fn rremove(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
-        Ok(MsgBody::Rremove)
+    fn rremove(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+        Ok(Fcall::Rremove)
     }
 
-    fn rstat(&mut self, req: &Request) -> rs9p::Result<MsgBody> {
+    fn rstat(&mut self, req: &Request) -> rs9p::Result<Fcall> {
         let fid = match req.ifcall {
-            &MsgBody::Tstat { fid } => { get_fid!(self, &fid) },
+            &Fcall::Tstat { fid } => { get_fid!(self, &fid) },
             _ => unreachable!()
         };
 
         let attr = try!(fs::metadata(&fid.realpath).or(strerror!(ENOENT)));
-        Ok(MsgBody::Rstat {
+        Ok(Fcall::Rstat {
             stat: rs9p_stat_from_unix(&attr, (&fid.path))
         })
     }
 
-    fn rwstat(&mut self, _: &Request) -> rs9p::Result<MsgBody> {
-        Ok(MsgBody::Rwstat)
+    fn rwstat(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+        Ok(Fcall::Rwstat)
     }
 }
 
@@ -221,7 +220,7 @@ fn main() {
     let exit_code = match unpfs_main(args) {
         Ok(code) => code,
         Err(e) => {
-            if e.description() == "unexpected EOF" {
+            if e.kind() == io::ErrorKind::ConnectionRefused {
                 0
             } else {
                 println!("Error: {:?}", e); -1
