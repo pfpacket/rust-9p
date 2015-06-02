@@ -3,8 +3,7 @@
 
 extern crate rs9p;
 
-use std::io;
-use std::fs;
+use std::{io, fs};
 use std::ffi::OsStr;
 use std::error::Error;
 use std::collections::HashMap;
@@ -212,7 +211,7 @@ fn unpfs_main(args: Vec<String>) -> io::Result<i32> {
     }));
 
     println!("[*] Ready to accept clients: {}", args[1]);
-    try!(rs9p::srv::srv(Unpfs::new(mountpoint), &args[1]));
+    try!(rs9p::srv(Unpfs::new(mountpoint), &args[1]));
 
     return Ok(0);
 }

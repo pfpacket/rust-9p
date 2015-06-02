@@ -150,8 +150,8 @@ impl<Fs, RwExt>  ClientDispatcher<Fs, RwExt>
 
 /// Start the 9P filesystem
 ///
-/// This function invokes a new thread when a client connects to the server
-/// to handle its 9P messages
+/// This function invokes a new thread to handle its 9P messages
+/// when a client connects to the server.
 pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<()> {
     let (proto, sockaddr) = try!(parse_proto(addr).or(
         io_error!(InvalidInput, "Invalid proto or address")

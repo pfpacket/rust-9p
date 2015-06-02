@@ -5,7 +5,7 @@ version = "0.0.1"
 authors = [ "afpacket <afpacket@gmail.com>" ]
 
 [[bin]]
-name = "hellofs"
+name = "unpfs"
 
 [dependencies.rust-9p]
 path = "../../"
