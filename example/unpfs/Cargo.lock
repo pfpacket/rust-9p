@@ -1,5 +1,5 @@
 [root]
-name = "hellofs"
+name = "unpfs"
 version = "0.0.1"
 dependencies = [
  "rust-9p 0.0.1",

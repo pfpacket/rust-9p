@@ -18,4 +18,3 @@ pub use fcall::*;
 pub use srv::Result;
 pub use srv::Request;
 pub use srv::Filesystem;
-pub use srv::Server;

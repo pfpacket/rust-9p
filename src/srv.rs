@@ -8,15 +8,30 @@ use serialize;
 use fcall::*;
 use std::io;
 use std::result;
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
+use std::thread;
+use std::sync::{Mutex, Arc};
 
 pub type Result<T> = result::Result<T, String>;
+
+macro_rules! lock {
+    ($mtx:expr) => { $mtx.lock().unwrap() }
+}
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
         Err(io::Error::new(io::ErrorKind::$kind, $msg))
     }
+}
+
+// return: (proto, addr:port)
+fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
+    let mut split = arg.split("!");
+    let proto = try!(split.nth(0).ok_or(()));
+    let addr  = try!(split.nth(0).ok_or(()));
+    let port  = try!(split.nth(0).ok_or(()));
+    Ok((proto, addr.to_owned() + ":" + port))
 }
 
 /// The client's request
@@ -35,7 +50,7 @@ impl<'a> Request<'a> {
 /// Return an error message if an operation failed.
 ///
 /// NOTE: Defined as `Srv` in 9p.h of Plan 9.
-pub trait Filesystem {
+pub trait Filesystem: Send {
     fn rflush(&mut self, _: &Request)   -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
     fn rattach(&mut self, _: &Request)  -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
     fn rwalk(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
@@ -47,74 +62,55 @@ pub trait Filesystem {
     fn rremove(&mut self, _: &Request)  -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
     fn rstat(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
     fn rwstat(&mut self, _: &Request)   -> Result<MsgBody> { Err(error::ENOSYS.to_owned()) }
-}
-
-// return: (proto, addr:port)
-fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
-    let mut split = arg.split("!");
-    let proto = try!(split.nth(0).ok_or(()));
-    let addr  = try!(split.nth(0).ok_or(()));
-    let port  = try!(split.nth(0).ok_or(()));
-    Ok((proto, addr.to_owned() + ":" + port))
-}
-
-/// 9P network server implementation
-pub struct Server<Fs: Filesystem> {
-    fs: Fs,
-    listener: TcpListener
-}
-
-impl<Fs: Filesystem> Server<Fs> {
-    /// Create a server instance
-    ///
-    /// Announce the network server
-    pub fn announce(fs: Fs, addr: &str) -> io::Result<Server<Fs>> {
-        let (proto, sockaddr) = try!(parse_proto(addr).or(
-            io_error!(InvalidInput, "Invalid proto or address")
-        ));
-
-        if proto != "tcp" {
-            return io_error!(InvalidInput, "Unsupported proto");
-        }
-
-        Ok(Server {
-            fs: fs,
-            listener: try!(TcpListener::bind(&sockaddr[..]))
+    fn rauth(&mut self, _: &Request)    -> Result<MsgBody> { Err(error::ECONNREFUSED2.to_owned()) }
+    fn rversion(&mut self, _res: &Request) -> Result<MsgBody> {
+        Ok(MsgBody::Rversion {
+            msize: 8192,
+            version: "9P2000".to_owned()
         })
     }
+}
 
-    /// Start the 9P filesystem server
-    pub fn srv(&mut self) -> io::Result<()> {
-        let (stream, _) = try!(self.listener.accept());
-        self.handle_client(stream)
-    }
+/// Client's 9P message dispatcher
+struct ClientDispatcher<Fs, RwExt>
+    where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
+{
+    fs: Arc<Mutex<Fs>>,
+    stream: RwExt
+}
 
-    fn handle_client(&mut self, mut stream: TcpStream) -> io::Result<()> {
-        loop {
-            let msg = try!(serialize::read_msg(&mut stream));
-            try!(self.handle_message(msg, &mut stream));
+impl<Fs, RwExt>  ClientDispatcher<Fs, RwExt>
+    where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
+{
+    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt) -> ClientDispatcher<Fs, RwExt> {
+        ClientDispatcher {
+            fs: fs,
+            stream: stream
         }
     }
 
-    fn handle_message<Rw>(&mut self, msg: Msg, stream: &mut Rw) -> io::Result<()>
-        where Rw: WriteBytesExt + ReadBytesExt
-    {
-        println!("[*] Message received: {:?}", msg);
+    fn dispatch(&mut self) -> io::Result<()> {
+        loop {
+            let msg = try!(serialize::read_msg(&mut self.stream));
+            try!(self.handle_message(msg));
+        }
+    }
 
+    fn handle_message(&mut self, msg: Msg) -> io::Result<()> {
         let result = match msg.typ {
-            MsgType::Tversion   => self.rversion(&Request::from(&msg)),
-            MsgType::Tauth      => Err(error::ECONNREFUSED2.to_owned()),
-            MsgType::Tflush     => self.fs.rflush(&Request::from(&msg)),
-            MsgType::Tattach    => self.fs.rattach(&Request::from(&msg)),
-            MsgType::Twalk      => self.fs.rwalk(&Request::from(&msg)),
-            MsgType::Topen      => self.fs.ropen(&Request::from(&msg)),
-            MsgType::Tcreate    => self.fs.rcreate(&Request::from(&msg)),
-            MsgType::Tread      => self.fs.rread(&Request::from(&msg)),
-            MsgType::Twrite     => self.fs.rwrite(&Request::from(&msg)),
-            MsgType::Tclunk     => self.fs.rclunk(&Request::from(&msg)),
-            MsgType::Tremove    => self.fs.rremove(&Request::from(&msg)),
-            MsgType::Tstat      => self.fs.rstat(&Request::from(&msg)),
-            MsgType::Twstat     => self.fs.rwstat(&Request::from(&msg)),
+            MsgType::Tversion   => lock!(self.fs).rversion(&Request::from(&msg)),
+            MsgType::Tauth      => lock!(self.fs).rauth(&Request::from(&msg)),
+            MsgType::Tflush     => lock!(self.fs).rflush(&Request::from(&msg)),
+            MsgType::Tattach    => lock!(self.fs).rattach(&Request::from(&msg)),
+            MsgType::Twalk      => lock!(self.fs).rwalk(&Request::from(&msg)),
+            MsgType::Topen      => lock!(self.fs).ropen(&Request::from(&msg)),
+            MsgType::Tcreate    => lock!(self.fs).rcreate(&Request::from(&msg)),
+            MsgType::Tread      => lock!(self.fs).rread(&Request::from(&msg)),
+            MsgType::Twrite     => lock!(self.fs).rwrite(&Request::from(&msg)),
+            MsgType::Tclunk     => lock!(self.fs).rclunk(&Request::from(&msg)),
+            MsgType::Tremove    => lock!(self.fs).rremove(&Request::from(&msg)),
+            MsgType::Tstat      => lock!(self.fs).rstat(&Request::from(&msg)),
+            MsgType::Twstat     => lock!(self.fs).rwstat(&Request::from(&msg)),
             _ => Err(error::EPROTO.to_owned()),
         };
 
@@ -123,17 +119,10 @@ impl<Fs: Filesystem> Server<Fs> {
             Err(err) => MsgBody::Rerror { ename: err }
         };
 
-        self.response(stream, res_body, msg.tag)
+        self.response(res_body, msg.tag)
     }
 
-    fn rversion(&self, _res: &Request) -> Result<MsgBody> {
-        Ok(MsgBody::Rversion {
-            msize: 8192,
-            version: "9P2000".to_owned()
-        })
-    }
-
-    fn response<W: WriteBytesExt>(&self, stream: &mut W, res: MsgBody, tag: u16) -> io::Result<()> {
+    fn response(&mut self, res: MsgBody, tag: u16) -> io::Result<()> {
         let typ = match &res {
             &MsgBody::Rversion { msize: _, version: _ } => MsgType::Rversion,
             &MsgBody::Rauth { aqid: _ }                 => MsgType::Rauth,
@@ -154,9 +143,33 @@ impl<Fs: Filesystem> Server<Fs> {
 
         let response_msg = Msg { typ: typ, tag: tag, body: res };
 
-        println!("[*] Sending message: {:?}", response_msg);
-
-        try!(serialize::write_msg(stream, &response_msg));
+        try!(serialize::write_msg(&mut self.stream, &response_msg));
         Ok(())
+    }
+}
+
+/// Start the 9P filesystem
+///
+/// This function invokes a new thread when a client connects to the server
+/// to handle its 9P messages
+pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<()> {
+    let (proto, sockaddr) = try!(parse_proto(addr).or(
+        io_error!(InvalidInput, "Invalid proto or address")
+    ));
+
+    if proto != "tcp" {
+        return io_error!(InvalidInput, "Unsupported proto");
+    }
+
+    let arc_fs = Arc::new(Mutex::new(filesystem));
+    let listener = try!(TcpListener::bind(&sockaddr[..]));
+
+    loop {
+        let (stream, _) = try!(listener.accept());
+        let fs = arc_fs.clone();
+        thread::spawn(move || {
+            let mut dispatcher = ClientDispatcher::new(fs, stream);
+            dispatcher.dispatch()
+        });
     }
 }
