@@ -88,6 +88,7 @@ pub struct Stat {
 }
 
 impl Stat {
+    /// Get the current size of the stat
     pub fn size(&self) -> u16 {
         use std::mem::{size_of, size_of_val};
         (size_of_val(&self.typ) +
@@ -159,13 +160,13 @@ pub struct Msg {
     /// The reply to the message will have the same tag
     pub tag: u16,
     /// Message body encapsulating the various 9P messages
-    pub body: MsgBody
+    pub body: Fcall
 }
 
 /// A data type encapsulating the various 9P messages
 #[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MsgBody {
+pub enum Fcall {
     Tversion { msize: u32, version: String },
     Rversion { msize: u32, version: String },
     Tauth { afid: u32, uname: String, aname: String },

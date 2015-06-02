@@ -1,5 +1,5 @@
 
-//! Serialize and deserialize 9P messages into and from binary
+//! Serialize/deserialize 9P messages into/from binary
 
 extern crate num;
 extern crate byteorder;
@@ -13,18 +13,6 @@ use self::byteorder::{Result, LittleEndian, ReadBytesExt, WriteBytesExt};
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
         Err(byteorder::Error::Io(io::Error::new(io::ErrorKind::$kind, $msg)))
-    }
-}
-
-macro_rules! encode {
-    ( $encoder:expr, $( $x:expr ),* ) => {
-        $( let _ = try!($x.encode(&mut $encoder)); )*
-    }
-}
-
-macro_rules! decode {
-    ($decoder:expr) => {
-        try!(Decodable::decode(&mut $decoder))
     }
 }
 
@@ -138,36 +126,42 @@ impl Encodable for Msg {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let mut buf: Vec<u8> = Vec::new();
 
+        macro_rules! encode {
+            ( $encoder:expr, $( $x:expr ),* ) => {
+                $( let _ = try!($x.encode(&mut $encoder)); )*
+            }
+        }
+
         encode!(buf, &(self.typ as u8));
         encode!(buf, &self.tag);
         match &self.body {
-            &MsgBody::Tversion { ref msize, ref version }                   => { encode!(buf, msize, version); },
-            &MsgBody::Rversion { ref msize, ref version }                   => { encode!(buf, msize, version); },
-            &MsgBody::Tauth { ref afid, ref uname, ref aname }              => { encode!(buf, afid, uname, aname); },
-            &MsgBody::Rauth { ref aqid }                                    => { encode!(buf, aqid); },
-            &MsgBody::Rerror { ref ename }                                  => { encode!(buf, ename); },
-            &MsgBody::Tflush { ref oldtag }                                 => { encode!(buf, oldtag); },
-            &MsgBody::Rflush                                                => {},
-            &MsgBody::Tattach { ref fid, ref afid, ref uname, ref aname }   => { encode!(buf, fid, afid, uname, aname); }
-            &MsgBody::Rattach { ref qid }                                   => { encode!(buf, qid); },
-            &MsgBody::Twalk { ref fid, ref newfid, ref wnames }             => { encode!(buf, fid, newfid, wnames); },
-            &MsgBody::Rwalk { ref wqids }                                   => { encode!(buf, wqids); },
-            &MsgBody::Topen { ref fid, ref mode }                           => { encode!(buf, fid, mode); },
-            &MsgBody::Ropen { ref qid, ref iounit }                         => { encode!(buf, qid, iounit); },
-            &MsgBody::Tcreate { ref fid, ref name, ref perm, ref mode }     => { encode!(buf, fid, name, perm, mode); },
-            &MsgBody::Rcreate { ref qid, ref iounit }                       => { encode!(buf, qid, iounit); },
-            &MsgBody::Tread { ref fid, ref offset, ref count }              => { encode!(buf, fid, offset, count); },
-            &MsgBody::Rread { ref data }                                    => { encode!(buf, data); },
-            &MsgBody::Twrite { ref fid, ref offset, ref data }              => { encode!(buf, fid, offset, data); },
-            &MsgBody::Rwrite { ref count }                                  => { encode!(buf, count); },
-            &MsgBody::Tclunk { ref fid }                                    => { encode!(buf, fid); },
-            &MsgBody::Rclunk                                                => {},
-            &MsgBody::Tremove { ref fid }                                   => { encode!(buf, fid); },
-            &MsgBody::Rremove                                               => {},
-            &MsgBody::Tstat { ref fid }                                     => { encode!(buf, fid); },
-            &MsgBody::Rstat { ref stat }                                    => { encode!(buf, stat); },
-            &MsgBody::Twstat { ref fid, ref stat }                          => { encode!(buf, fid, stat); },
-            &MsgBody::Rwstat                                                => {},
+            &Fcall::Tversion { ref msize, ref version }                 => { encode!(buf, msize, version); },
+            &Fcall::Rversion { ref msize, ref version }                 => { encode!(buf, msize, version); },
+            &Fcall::Tauth { ref afid, ref uname, ref aname }            => { encode!(buf, afid, uname, aname); },
+            &Fcall::Rauth { ref aqid }                                  => { encode!(buf, aqid); },
+            &Fcall::Rerror { ref ename }                                => { encode!(buf, ename); },
+            &Fcall::Tflush { ref oldtag }                               => { encode!(buf, oldtag); },
+            &Fcall::Rflush                                              => {},
+            &Fcall::Tattach { ref fid, ref afid, ref uname, ref aname } => { encode!(buf, fid, afid, uname, aname); }
+            &Fcall::Rattach { ref qid }                                 => { encode!(buf, qid); },
+            &Fcall::Twalk { ref fid, ref newfid, ref wnames }           => { encode!(buf, fid, newfid, wnames); },
+            &Fcall::Rwalk { ref wqids }                                 => { encode!(buf, wqids); },
+            &Fcall::Topen { ref fid, ref mode }                         => { encode!(buf, fid, mode); },
+            &Fcall::Ropen { ref qid, ref iounit }                       => { encode!(buf, qid, iounit); },
+            &Fcall::Tcreate { ref fid, ref name, ref perm, ref mode }   => { encode!(buf, fid, name, perm, mode); },
+            &Fcall::Rcreate { ref qid, ref iounit }                     => { encode!(buf, qid, iounit); },
+            &Fcall::Tread { ref fid, ref offset, ref count }            => { encode!(buf, fid, offset, count); },
+            &Fcall::Rread { ref data }                                  => { encode!(buf, data); },
+            &Fcall::Twrite { ref fid, ref offset, ref data }            => { encode!(buf, fid, offset, data); },
+            &Fcall::Rwrite { ref count }                                => { encode!(buf, count); },
+            &Fcall::Tclunk { ref fid }                                  => { encode!(buf, fid); },
+            &Fcall::Rclunk                                              => {},
+            &Fcall::Tremove { ref fid }                                 => { encode!(buf, fid); },
+            &Fcall::Rremove                                             => {},
+            &Fcall::Tstat { ref fid }                                   => { encode!(buf, fid); },
+            &Fcall::Rstat { ref stat }                                  => { encode!(buf, stat); },
+            &Fcall::Twstat { ref fid, ref stat }                        => { encode!(buf, fid, stat); },
+            &Fcall::Rwstat                                              => {},
         };
 
         let size = mem::size_of::<u32>() + buf.len();
@@ -265,36 +259,42 @@ impl Decodable for Msg {
         let size = try!(r.read_u32::<LittleEndian>()) - 4;
         let mut buf = Cursor::new(try!(read_exact(r, size as usize)));
 
+        macro_rules! decode {
+            ($decoder:expr) => {
+                try!(Decodable::decode(&mut $decoder))
+            }
+        }
+
         let msg_type = MsgType::from_u8(decode!(buf));
         let tag = decode!(buf);
         let body = match msg_type {
-            Some(MsgType::Tversion) => MsgBody::Tversion { msize: decode!(buf), version: decode!(buf) },
-            Some(MsgType::Rversion) => MsgBody::Rversion { msize: decode!(buf), version: decode!(buf) },
-            Some(MsgType::Tauth)    => MsgBody::Tauth { afid: decode!(buf), uname: decode!(buf), aname: decode!(buf) },
-            Some(MsgType::Rauth)    => MsgBody::Rauth { aqid: decode!(buf) },
-            Some(MsgType::Rerror)   => MsgBody::Rerror { ename: decode!(buf) },
-            Some(MsgType::Tflush)   => MsgBody::Tflush { oldtag: decode!(buf) },
-            Some(MsgType::Rflush)   => MsgBody::Rflush,
-            Some(MsgType::Tattach)  => MsgBody::Tattach { fid: decode!(buf), afid: decode!(buf), uname: decode!(buf), aname: decode!(buf) },
-            Some(MsgType::Rattach)  => MsgBody::Rattach { qid: decode!(buf) },
-            Some(MsgType::Twalk)    => MsgBody::Twalk { fid: decode!(buf), newfid: decode!(buf), wnames: decode!(buf) },
-            Some(MsgType::Rwalk)    => MsgBody::Rwalk { wqids: decode!(buf) },
-            Some(MsgType::Topen)    => MsgBody::Topen { mode: decode!(buf), fid: decode!(buf) },
-            Some(MsgType::Ropen)    => MsgBody::Ropen { qid: decode!(buf), iounit: decode!(buf) },
-            Some(MsgType::Tcreate)  => MsgBody::Tcreate { fid: decode!(buf), name: decode!(buf), perm: decode!(buf), mode: decode!(buf) },
-            Some(MsgType::Rcreate)  => MsgBody::Rcreate { iounit: decode!(buf), qid: decode!(buf) },
-            Some(MsgType::Tread)    => MsgBody::Tread { fid: decode!(buf), offset: decode!(buf), count: decode!(buf) },
-            Some(MsgType::Rread)    => MsgBody::Rread { data: decode!(buf) },
-            Some(MsgType::Twrite)   => MsgBody::Twrite { fid: decode!(buf), offset: decode!(buf), data: decode!(buf) },
-            Some(MsgType::Rwrite)   => MsgBody::Rwrite { count: decode!(buf) },
-            Some(MsgType::Tclunk)   => MsgBody::Tclunk { fid: decode!(buf) },
-            Some(MsgType::Rclunk)   => MsgBody::Rclunk,
-            Some(MsgType::Tremove)  => MsgBody::Tremove { fid: decode!(buf) },
-            Some(MsgType::Rremove)  => MsgBody::Rremove,
-            Some(MsgType::Tstat)    => MsgBody::Tstat { fid: decode!(buf) },
-            Some(MsgType::Rstat)    => MsgBody::Rstat { stat: decode!(buf) },
-            Some(MsgType::Twstat)   => MsgBody::Twstat { fid: decode!(buf), stat: decode!(buf) },
-            Some(MsgType::Rwstat)   => MsgBody::Rwstat,
+            Some(MsgType::Tversion) => Fcall::Tversion { msize: decode!(buf), version: decode!(buf) },
+            Some(MsgType::Rversion) => Fcall::Rversion { msize: decode!(buf), version: decode!(buf) },
+            Some(MsgType::Tauth)    => Fcall::Tauth { afid: decode!(buf), uname: decode!(buf), aname: decode!(buf) },
+            Some(MsgType::Rauth)    => Fcall::Rauth { aqid: decode!(buf) },
+            Some(MsgType::Rerror)   => Fcall::Rerror { ename: decode!(buf) },
+            Some(MsgType::Tflush)   => Fcall::Tflush { oldtag: decode!(buf) },
+            Some(MsgType::Rflush)   => Fcall::Rflush,
+            Some(MsgType::Tattach)  => Fcall::Tattach { fid: decode!(buf), afid: decode!(buf), uname: decode!(buf), aname: decode!(buf) },
+            Some(MsgType::Rattach)  => Fcall::Rattach { qid: decode!(buf) },
+            Some(MsgType::Twalk)    => Fcall::Twalk { fid: decode!(buf), newfid: decode!(buf), wnames: decode!(buf) },
+            Some(MsgType::Rwalk)    => Fcall::Rwalk { wqids: decode!(buf) },
+            Some(MsgType::Topen)    => Fcall::Topen { mode: decode!(buf), fid: decode!(buf) },
+            Some(MsgType::Ropen)    => Fcall::Ropen { qid: decode!(buf), iounit: decode!(buf) },
+            Some(MsgType::Tcreate)  => Fcall::Tcreate { fid: decode!(buf), name: decode!(buf), perm: decode!(buf), mode: decode!(buf) },
+            Some(MsgType::Rcreate)  => Fcall::Rcreate { iounit: decode!(buf), qid: decode!(buf) },
+            Some(MsgType::Tread)    => Fcall::Tread { fid: decode!(buf), offset: decode!(buf), count: decode!(buf) },
+            Some(MsgType::Rread)    => Fcall::Rread { data: decode!(buf) },
+            Some(MsgType::Twrite)   => Fcall::Twrite { fid: decode!(buf), offset: decode!(buf), data: decode!(buf) },
+            Some(MsgType::Rwrite)   => Fcall::Rwrite { count: decode!(buf) },
+            Some(MsgType::Tclunk)   => Fcall::Tclunk { fid: decode!(buf) },
+            Some(MsgType::Rclunk)   => Fcall::Rclunk,
+            Some(MsgType::Tremove)  => Fcall::Tremove { fid: decode!(buf) },
+            Some(MsgType::Rremove)  => Fcall::Rremove,
+            Some(MsgType::Tstat)    => Fcall::Tstat { fid: decode!(buf) },
+            Some(MsgType::Rstat)    => Fcall::Rstat { stat: decode!(buf) },
+            Some(MsgType::Twstat)   => Fcall::Twstat { fid: decode!(buf), stat: decode!(buf) },
+            Some(MsgType::Rwstat)   => Fcall::Rwstat,
             Some(MsgType::Terror) | None =>
                 return io_error!(Other, "Invalid message type")
         };
@@ -327,7 +327,7 @@ impl MsgEncoder {
 
 /// 9P message decoder
 ///
-/// Helper class to deserialize various data types in 9P messages into binary
+/// Helper class to deserialize various data types in 9P messages from binary
 #[derive(Clone, Debug)]
 pub struct MsgDecoder {
     data: Cursor<Vec<u8>>
@@ -383,7 +383,7 @@ fn msg_encode_decode1() {
     let expected = Msg {
         typ: MsgType::Rversion,
         tag: 0xdead,
-        body: MsgBody::Rversion {
+        body: Fcall::Rversion {
             msize: 40,
             version: "9P2000".to_owned()
         }
@@ -436,7 +436,7 @@ fn serialize_rstat() {
     let expected = Msg {
         typ: MsgType::Rstat,
         tag: 1,
-        body: MsgBody::Rstat { stat: stat }
+        body: Fcall::Rstat { stat: stat }
     };
 
     let mut buf = Vec::new();
@@ -444,9 +444,6 @@ fn serialize_rstat() {
 
     let mut readbuf = Cursor::new(buf);
     let actual = Decodable::decode(&mut readbuf);
-
-    println!("rstat: expected: {:?}", expected);
-    println!("rstat: actual  : {:?}", actual);
 
     assert_eq!(expected, actual.unwrap());
 }
@@ -467,7 +464,7 @@ fn serialize_rstat() {
 //    let rversion = Msg {
 //        typ: MsgType::Rversion,
 //        tag: tversion_msg.tag,
-//        body: MsgBody::Rversion {
+//        body: Fcall::Rversion {
 //            msize: 8192,
 //            version: "9P2000".to_owned()
 //        }
@@ -483,7 +480,7 @@ fn serialize_rstat() {
 //    let rattach = Msg {
 //        typ: MsgType::Rattach,
 //        tag: tattach_msg.tag,
-//        body: MsgBody::Rattach {
+//        body: Fcall::Rattach {
 //            qid: Qid {
 //                typ: qt::DIR,
 //                version: 1,

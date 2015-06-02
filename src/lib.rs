@@ -1,5 +1,5 @@
 
-//! Deal with 9P protocol, a network filesystem
+//! A library to deal with 9P protocol, a network filesystem
 
 #![feature(metadata_ext)]
 
@@ -11,11 +11,11 @@ extern crate enum_primitive;
 
 pub mod fcall;
 pub mod serialize;
-pub mod srv;
+pub mod server;
 pub mod error;
 
 pub use fcall::*;
-pub use srv::Result;
-pub use srv::Request;
-pub use srv::Filesystem;
-pub use srv::srv;
+pub use server::Result;
+pub use server::Request;
+pub use server::Filesystem;
+pub use server::srv;
