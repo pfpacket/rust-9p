@@ -86,7 +86,7 @@ impl Encodable for Qid {
 impl Encodable for Stat {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let stat_size: u16 = self.size();
-        try!((stat_size + 2).encode(w));
+        //try!((stat_size + 2).encode(w));
         try!(stat_size.encode(w));
         try!(self.typ.encode(w));
         try!(self.dev.encode(w));
@@ -159,8 +159,8 @@ impl Encodable for Msg {
             Fcall::Tremove { ref fid }                                  => { encode!(buf, fid); },
             Fcall::Rremove                                              => {},
             Fcall::Tstat { ref fid }                                    => { encode!(buf, fid); },
-            Fcall::Rstat { ref stat }                                   => { encode!(buf, stat); },
-            Fcall::Twstat { ref fid, ref stat }                         => { encode!(buf, fid, stat); },
+            Fcall::Rstat { ref stat }                                   => { encode!(buf, vec![stat.clone()]); },
+            Fcall::Twstat { ref fid, ref stat }                         => { encode!(buf, fid, vec![stat.clone()]); },
             Fcall::Rwstat                                               => {},
         };
 

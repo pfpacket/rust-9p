@@ -175,9 +175,8 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
         lock!(self.fs).rclunk(req)
     }
 
-    fn register_fids(&mut self, mut req: Request<Fs::Fid>, qid: Option<Qid>) {
+    fn register_fids(&mut self, mut req: Request<Fs::Fid>) {
         if req.fid.is_some() {
-            req.fid().qid = qid;
             let fid = req.fid.as_mut().unwrap().fid;
             self.fids.insert(fid, req.fid.unwrap());
         }
@@ -213,12 +212,12 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
             _ => Err(error::EPROTO.to_owned())
         };
 
-        let (qid, res_body) = match result {
-            Ok(response) => (response.qid(), response),
-            Err(err) => (None, Fcall::Rerror { ename: err })
+        let res_body = match result {
+            Ok(response) => response,
+            Err(err) => Fcall::Rerror { ename: err }
         };
 
-        self.register_fids(req, qid);
+        self.register_fids(req);
         self.response(res_body, msg.tag)
     }
 
