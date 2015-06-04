@@ -6,12 +6,11 @@ extern crate byteorder;
 use error;
 use serialize;
 use fcall::*;
-use std::io;
-use std::result;
+use std::{io, result, fmt, thread};
+use std::collections::HashMap;
 use std::net::{SocketAddr, TcpListener};
-use self::byteorder::{ReadBytesExt, WriteBytesExt};
-use std::thread;
 use std::sync::{Mutex, Arc};
+use self::byteorder::{ReadBytesExt, WriteBytesExt};
 
 pub type Result<T> = result::Result<T, String>;
 
@@ -21,27 +20,42 @@ macro_rules! io_error {
     }
 }
 
-// return: (proto, addr:port)
-fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
-    let mut split = arg.split("!");
-    let proto = try!(split.nth(0).ok_or(()));
-    let addr  = try!(split.nth(0).ok_or(()));
-    let port  = try!(split.nth(0).ok_or(()));
-    Ok((proto, addr.to_owned() + ":" + port))
+/// Represents a fid of clients holding associated `Filesystem::Fid`
+#[derive(Clone, Debug)]
+pub struct Fid<T> {
+    /// Raw client side fid
+    pub fid: u32,
+    /// Qid of this fid
+    pub qid: Option<Qid>,
+    /// `Filesystem::Fid` associated with this fid.
+    /// Changing this value affects the continuous callbacks.
+    pub aux: Option<T>,
+}
+
+impl<T> Fid<T> {
+    /// Unwrap the aux and returns a reference to it
+    pub fn aux(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
+    pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
 }
 
 /// The client's request
-pub struct Request<'a, 'b> {
+#[derive(Clone, Debug)]
+pub struct Request<'a, 'b, T> {
     /// The request message which a client sent
     pub ifcall: &'a Fcall,
     /// The socket address of the remote peer
     pub remote: &'b SocketAddr,
+    /// Fid associated with the request's fid
+    pub fid: Option<Fid<T>>,
+    /// New fid associated with the Twalk's newfid
+    pub newfid: Option<Fid<T>>,
 }
 
-impl<'a, 'b> Request<'a, 'b> {
-    fn from(msg: &'a Msg, addr: &'b SocketAddr) -> Request<'a, 'b> {
-        Request { ifcall: &msg.body, remote: addr }
-    }
+impl<'a, 'b, T> Request<'a, 'b, T> {
+    /// Unwrap the fid
+    pub fn fid(&mut self) -> &mut Fid<T> { self.fid.as_mut().unwrap() }
+    /// Unwrap the newfid
+    pub fn newfid(&mut self) -> &mut Fid<T> { self.newfid.as_mut().unwrap() }
 }
 
 /// Filesystem server implementation
@@ -58,19 +72,21 @@ impl<'a, 'b> Request<'a, 'b> {
 ///
 /// NOTE: Defined as `Srv` in 9p.h of Plan 9.
 pub trait Filesystem: Send {
-    fn rflush(&mut self, _: &Request)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rattach(&mut self, _: &Request)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rwalk(&mut self, _: &Request)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn ropen(&mut self, _: &Request)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rcreate(&mut self, _: &Request)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rread(&mut self, _: &Request)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rwrite(&mut self, _: &Request)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rclunk(&mut self, _: &Request)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rremove(&mut self, _: &Request)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rstat(&mut self, _: &Request)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rwstat(&mut self, _: &Request)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rauth(&mut self, _: &Request)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rversion(&mut self, _: &Request) -> Result<Fcall> {
+    /// User defined fid type to be associated with a client's fid
+    type Fid: fmt::Debug = ();
+    fn rauth(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rflush(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rattach(&mut self, _: &mut Request<Self::Fid>)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rwalk(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn ropen(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rcreate(&mut self, _: &mut Request<Self::Fid>)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rread(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rwrite(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rclunk(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rremove(&mut self, _: &mut Request<Self::Fid>)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rstat(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rwstat(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
+    fn rversion(&mut self, _: &mut Request<Self::Fid>) -> Result<Fcall> {
         Ok(Fcall::Rversion {
             msize: 8192,
             version: "9P2000".to_owned()
@@ -78,94 +94,166 @@ pub trait Filesystem: Send {
     }
 }
 
-/// Incoming 9P message dispatcher
-struct ClientDispatcher<Fs, RwExt>
+struct ServerInstance<Fs, RwExt>
     where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
 {
     fs: Arc<Mutex<Fs>>,
     stream: RwExt,
     sockaddr: SocketAddr,
+    fids: HashMap<u32, Fid<Fs::Fid>>,
+    msize: Option<u32>,
+    uname: Option<String>,
+    aname: Option<String>,
 }
 
-impl<Fs, RwExt>  ClientDispatcher<Fs, RwExt>
+macro_rules! lock { ($mtx:expr) => { $mtx.lock().unwrap() } }
+impl<Fs, RwExt> ServerInstance<Fs, RwExt>
     where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
 {
-    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt, addr: SocketAddr) -> ClientDispatcher<Fs, RwExt> {
-        ClientDispatcher {
+    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt, addr: SocketAddr)
+        -> io::Result<ServerInstance<Fs, RwExt>>
+    {
+        let mut server = ServerInstance {
             fs: fs,
             stream: stream,
-            sockaddr: addr
+            sockaddr: addr,
+            fids: HashMap::new(),
+            msize: None,
+            uname: None,
+            aname: None,
+        };
+
+        try!(server.dispatch_once());
+        if server.msize.is_none() {
+            return io_error!(Other, "Unexpected packet before Tversion")
+        }
+
+        try!(server.dispatch_once());
+        if server.uname.is_none() {
+            return io_error!(Other, "Unexpected packet before Tattach")
+        }
+
+        Ok(server)
+    }
+
+    fn dispatch_once(&mut self) -> io::Result<()> {
+        let msg = try!(serialize::read_msg(&mut self.stream));
+        match self.handle_message(msg) {
+            Ok(v) => Ok(v),
+            Err(byteorder::Error::UnexpectedEOF) => {
+                return io_error!(ConnectionRefused, "Unexpected EOF")
+            },
+            Err(byteorder::Error::Io(e))=> { return Err(e) },
         }
     }
 
     fn dispatch(&mut self) -> io::Result<()> {
         loop {
-            let msg = try!(serialize::read_msg(&mut self.stream));
-            match self.handle_message(msg) {
-                Err(byteorder::Error::UnexpectedEOF) => {
-                    return io_error!(ConnectionRefused, "Unexpected EOF")
-                },
-                Err(byteorder::Error::Io(e))=> { return Err(e) },
-                Ok(_) => {}
-            };
+            try!(self.dispatch_once());
+        }
+    }
+
+    fn rversion(&mut self, req: &mut Request<Fs::Fid>, msize: u32) -> Result<Fcall> {
+        self.msize = Some(msize);
+        lock!(self.fs).rversion(req)
+    }
+
+    fn rattach(&mut self, req: &mut Request<Fs::Fid>, fid: u32, uname: &String, aname: &String) -> Result<Fcall> {
+        self.uname = Some(uname.clone());
+        self.aname = Some(aname.clone());
+        req.fid = Some(Fid { fid: fid, qid: None, aux: None });
+        lock!(self.fs).rattach(req)
+    }
+
+    fn rwalk(&mut self, req: &mut Request<Fs::Fid>, newfid: u32) -> Result<Fcall> {
+        req.newfid = Some(Fid { fid: newfid, qid: None, aux: None });
+        lock!(self.fs).rwalk(req)
+    }
+
+    fn rclunk(&mut self, req: &mut Request<Fs::Fid>, fid: u32) -> Result<Fcall> {
+        self.fids.remove(&fid);
+        lock!(self.fs).rclunk(req)
+    }
+
+    fn register_fids(&mut self, mut req: Request<Fs::Fid>, qid: Option<Qid>) {
+        if req.fid.is_some() {
+            req.fid().qid = qid;
+            let fid = req.fid.as_mut().unwrap().fid;
+            self.fids.insert(fid, req.fid.unwrap());
+        }
+
+        if req.newfid.is_some() {
+            let newfid = req.newfid.as_mut().unwrap().fid;
+            self.fids.insert(newfid, req.newfid.unwrap());
         }
     }
 
     fn handle_message(&mut self, msg: Msg) -> byteorder::Result<()> {
-        macro_rules! lock { ($mtx:expr) => { $mtx.lock().unwrap() } }
-        let result = {
-            let request = &Request::from(&msg, &self.sockaddr);
-            match msg.typ {
-                MsgType::Tversion   => lock!(self.fs).rversion(&request),
-                MsgType::Tauth      => lock!(self.fs).rauth(&request),
-                MsgType::Tflush     => lock!(self.fs).rflush(&request),
-                MsgType::Tattach    => lock!(self.fs).rattach(&request),
-                MsgType::Twalk      => lock!(self.fs).rwalk(&request),
-                MsgType::Topen      => lock!(self.fs).ropen(&request),
-                MsgType::Tcreate    => lock!(self.fs).rcreate(&request),
-                MsgType::Tread      => lock!(self.fs).rread(&request),
-                MsgType::Twrite     => lock!(self.fs).rwrite(&request),
-                MsgType::Tclunk     => lock!(self.fs).rclunk(&request),
-                MsgType::Tremove    => lock!(self.fs).rremove(&request),
-                MsgType::Tstat      => lock!(self.fs).rstat(&request),
-                MsgType::Twstat     => lock!(self.fs).rwstat(&request),
-                _ => Err(error::EPROTO.to_owned()),
-            }
+        let fid = msg.body.fid().and_then(|f| self.fids.remove(&f));
+        let mut req = Request {
+            ifcall: &msg.body,
+            remote: &self.sockaddr.clone(),
+            fid: fid, newfid: None
         };
 
-        let res_body = match result {
-            Ok(response) => response,
-            Err(err) => Fcall::Rerror { ename: err }
+        let result = match msg.body {
+            Fcall::Tversion { msize, .. }                       => self.rversion(&mut req, msize),
+            Fcall::Tauth { .. }                                 => lock!(self.fs).rauth(&mut req),
+            Fcall::Tflush { .. }                                => lock!(self.fs).rflush(&mut req),
+            Fcall::Tattach { fid, ref uname, ref aname, .. }    => self.rattach(&mut req, fid, uname, aname),
+            Fcall::Twalk { newfid, .. }                         => self.rwalk(&mut req, newfid),
+            Fcall::Topen { .. }                                 => lock!(self.fs).ropen(&mut req),
+            Fcall::Tcreate { .. }                               => lock!(self.fs).rcreate(&mut req),
+            Fcall::Tread { .. }                                 => lock!(self.fs).rread(&mut req),
+            Fcall::Twrite { .. }                                => lock!(self.fs).rwrite(&mut req),
+            Fcall::Tremove { .. }                               => lock!(self.fs).rremove(&mut req),
+            Fcall::Tclunk { fid }                               => self.rclunk(&mut req, fid),
+            Fcall::Tstat { .. }                                 => lock!(self.fs).rstat(&mut req),
+            Fcall::Twstat { .. }                                => lock!(self.fs).rwstat(&mut req),
+            _ => Err(error::EPROTO.to_owned())
         };
 
+        let (qid, res_body) = match result {
+            Ok(response) => (response.qid(), response),
+            Err(err) => (None, Fcall::Rerror { ename: err })
+        };
+
+        self.register_fids(req, qid);
         self.response(res_body, msg.tag)
     }
 
     fn response(&mut self, res: Fcall, tag: u16) -> byteorder::Result<()> {
-        let typ = match &res {
-            &Fcall::Rversion { msize: _, version: _ }   => MsgType::Rversion,
-            &Fcall::Rauth { aqid: _ }                   => MsgType::Rauth,
-            &Fcall::Rerror { ename: _ }                 => MsgType::Rerror,
-            &Fcall::Rflush                              => MsgType::Rflush,
-            &Fcall::Rattach { qid: _ }                  => MsgType::Rattach,
-            &Fcall::Rwalk { wqids: _ }                  => MsgType::Rwalk,
-            &Fcall::Ropen { qid: _, iounit: _ }         => MsgType::Ropen,
-            &Fcall::Rcreate { qid: _, iounit: _ }       => MsgType::Rcreate,
-            &Fcall::Rread { data: _ }                   => MsgType::Rread,
-            &Fcall::Rwrite { count: _ }                 => MsgType::Rwrite,
-            &Fcall::Rclunk                              => MsgType::Rclunk,
-            &Fcall::Rremove                             => MsgType::Rremove,
-            &Fcall::Rstat { stat: _ }                   => MsgType::Rstat,
-            &Fcall::Rwstat                              => MsgType::Rwstat,
+        let typ = match res {
+            Fcall::Rversion { .. }  => MsgType::Rversion,
+            Fcall::Rauth { .. }     => MsgType::Rauth,
+            Fcall::Rerror { .. }    => MsgType::Rerror,
+            Fcall::Rflush           => MsgType::Rflush,
+            Fcall::Rattach { .. }   => MsgType::Rattach,
+            Fcall::Rwalk { .. }     => MsgType::Rwalk,
+            Fcall::Ropen { .. }     => MsgType::Ropen,
+            Fcall::Rcreate { .. }   => MsgType::Rcreate,
+            Fcall::Rread { .. }     => MsgType::Rread,
+            Fcall::Rwrite { .. }    => MsgType::Rwrite,
+            Fcall::Rclunk           => MsgType::Rclunk,
+            Fcall::Rremove          => MsgType::Rremove,
+            Fcall::Rstat { .. }     => MsgType::Rstat,
+            Fcall::Rwstat           => MsgType::Rwstat,
             _ => return Err(byteorder::Error::Io(io::Error::new(
                     io::ErrorKind::Other, "Try to send invalid message in this context"))),
         };
 
         let response_msg = Msg { typ: typ, tag: tag, body: res };
-
-        try!(serialize::write_msg(&mut self.stream, &response_msg));
-        Ok(())
+        serialize::write_msg(&mut self.stream, &response_msg).and(Ok(()))
     }
+}
+
+// return: (proto, addr:port)
+fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
+    let mut split = arg.split("!");
+    let proto = try!(split.nth(0).ok_or(()));
+    let addr  = try!(split.nth(0).ok_or(()));
+    let port  = try!(split.nth(0).ok_or(()));
+    Ok((proto, addr.to_owned() + ":" + port))
 }
 
 /// Start the 9P filesystem
@@ -174,7 +262,7 @@ impl<Fs, RwExt>  ClientDispatcher<Fs, RwExt>
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<()> {
     let (proto, sockaddr) = try!(parse_proto(addr).or(
-        io_error!(InvalidInput, "Invalid proto or address")
+        io_error!(InvalidInput, "Invalid protocol or address")
     ));
 
     if proto != "tcp" {
@@ -187,8 +275,11 @@ pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<(
     loop {
         let (stream, addr) = try!(listener.accept());
         let fs = arc_fs.clone();
-        thread::spawn(move || {
-            ClientDispatcher::new(fs, stream, addr).dispatch()
+        let _ = thread::Builder::new().name(format!("{}", addr)).spawn(move || {
+            let result = try!(ServerInstance::new(fs, stream, addr)).dispatch();
+            println!("[!] ServerThread={:?} finished: {:?}",
+                thread::current().name().unwrap_or("NoInfo"), result);
+            result
         });
     }
 }

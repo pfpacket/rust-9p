@@ -5,62 +5,17 @@ extern crate rs9p;
 
 use std::{io, fs};
 use std::ffi::OsStr;
-use std::collections::HashMap;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use rs9p::error;
 use rs9p::Request;
 use rs9p::fcall::*;
 
-macro_rules! strerror {
-    ($err:ident) => { Err(error::$err.to_owned()) }
-}
+#[macro_use]
+mod utils;
+use utils::*;
 
-macro_rules! io_error {
-    ($kind:ident, $msg:expr) => {
-        Err(io::Error::new(io::ErrorKind::$kind, $msg))
-    }
-}
-
-fn rs9p_get_qid_type(attr: &fs::Metadata) -> u8 {
-    if attr.is_dir() {
-        qt::DIR
-    } else {
-        qt::FILE
-    }
-}
-
-fn rs9p_stat_from_unix(attr: &fs::Metadata, path: &Path) -> Stat {
-    let raw_attr = attr.as_raw();
-    let mut mode = raw_attr.mode() & 0o777;
-    if attr.is_dir() { mode |= dm::DIR }
-
-    let name = if path == Path::new("/") {
-        "/".to_owned()
-    } else {
-        path.file_name().unwrap().to_str().unwrap().to_owned()
-    };
-
-    Stat {
-        typ: 0,
-        dev: raw_attr.dev() as u32,
-        qid: Qid {
-            typ: rs9p_get_qid_type(attr),
-            version: 0,
-            path: raw_attr.ino(),
-        },
-        mode: mode,
-        atime: raw_attr.atime() as u32,
-        mtime: raw_attr.mtime() as u32,
-        length: raw_attr.size() as u64,
-        name: name,
-        uid: std::env::var("USER").unwrap(),
-        gid: std::env::var("USER").unwrap(),
-        muid: std::env::var("USER").unwrap(),
-    }
-}
-
+#[derive(Debug)]
 struct Fid {
     path: PathBuf,
     realpath: PathBuf,
@@ -68,7 +23,8 @@ struct Fid {
 
 impl Fid {
     fn new<P1: ?Sized, P2: ?Sized>(path: &P1, real: &P2) -> Fid
-        where P1: AsRef<OsStr>, P2: AsRef<OsStr> {
+        where P1: AsRef<OsStr>, P2: AsRef<OsStr>
+    {
         Fid {
             path: Path::new(path).to_path_buf(),
             realpath: Path::new(real).to_path_buf()
@@ -78,14 +34,12 @@ impl Fid {
 
 struct Unpfs {
     realroot: PathBuf,
-    fids: HashMap<u32, Fid>
 }
 
 impl Unpfs {
     fn new(mountpoint: &str) -> Unpfs {
         Unpfs {
             realroot: PathBuf::from(mountpoint),
-            fids: HashMap::new()
         }
     }
 
@@ -95,100 +49,74 @@ impl Unpfs {
     }
 }
 
-macro_rules! get_fid {
-    ($fs:expr, $fid:expr) => {
-        try!($fs.fids.get($fid).ok_or(error::EBADF2.to_owned()))
-    }
-}
-
 impl rs9p::Filesystem for Unpfs {
-    fn rflush(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    type Fid = Fid;
+
+    fn rflush(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Ok(Fcall::Rflush)
     }
 
-    fn rattach(&mut self, req: &Request) -> rs9p::Result<Fcall> {
-        match req.ifcall {
-            &Fcall::Tattach { fid, afid: _, uname: _, aname: _ } => {
-                self.fids.insert(fid, Fid::new("/", &self.realroot));
-            }, _ => unreachable!()
-        };
-
-        let attr = try!(fs::metadata(&self.realroot).or(strerror!(ENOENT)));
+    fn rattach(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
+        req.fid().aux = Some(Fid::new("/", &self.realroot));
         Ok(Fcall::Rattach {
-            qid: Qid {
-                typ: qt::DIR, version: 0, path: attr.as_raw().ino()
-            }
+            qid: try!(get_qid(&self.realroot))
         })
     }
 
-    fn rwalk(&mut self, req: &Request) -> rs9p::Result<Fcall> {
-        let (newfid, result_path, wqids) = match req.ifcall {
-            &Fcall::Twalk { fid, newfid, ref wnames } => {
-                let parent_fid = get_fid!(self, &fid);
-                let mut result_path = parent_fid.realpath.clone();
-
-                let mut wqids = Vec::new();
-                for ref name in wnames {
-                    result_path.push(name);
-                    let attr = try!(fs::metadata(&result_path).or(strerror!(ENOENT)));
-                    wqids.push(Qid {
-                        typ: rs9p_get_qid_type(&attr),
-                        version: 0,
-                        path: attr.as_raw().ino()
-                    });
-                }
-
-                (newfid, result_path, wqids)
-            }, _ => unreachable!()
+    fn rwalk(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
+        let wnames = match req.ifcall {
+            &Fcall::Twalk { fid: _, newfid: _, ref wnames } => wnames.clone(),
+            _ => unreachable!()
         };
 
-        let fid = self.fid_from_realpath(result_path.to_str().unwrap());
-        self.fids.insert(newfid, fid);
+        let mut wqids = Vec::new();
+        let mut result_path = req.fid().aux().realpath.clone();
+
+        for ref name in wnames {
+            result_path.push(name);
+            println!("rwalk: result_path={:?}", result_path);
+            wqids.push( try!(get_qid(&result_path)) );
+        }
+
+        let unpfs_newfid = self.fid_from_realpath(result_path.to_str().unwrap());
+        req.newfid().aux = Some(unpfs_newfid);
 
         Ok(Fcall::Rwalk { wqids: wqids })
     }
 
-    fn ropen(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    fn ropen(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rcreate(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    fn rcreate(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rread(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    fn rread(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rwrite(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    fn rwrite(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Err(error::ENOSYS.to_owned())
     }
 
-    fn rclunk(&mut self, req: &Request) -> rs9p::Result<Fcall> {
-        match req.ifcall {
-            &Fcall::Tclunk { fid } => { self.fids.remove(&fid) },
-            _ => unreachable!(),
-        };
+    fn rclunk(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Ok(Fcall::Rclunk)
     }
 
-    fn rremove(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    fn rremove(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Ok(Fcall::Rremove)
     }
 
-    fn rstat(&mut self, req: &Request) -> rs9p::Result<Fcall> {
-        let fid = match req.ifcall {
-            &Fcall::Tstat { fid } => { get_fid!(self, &fid) },
-            _ => unreachable!()
-        };
-
+    fn rstat(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
+        let fid = req.fid().aux();
         let attr = try!(fs::metadata(&fid.realpath).or(strerror!(ENOENT)));
         Ok(Fcall::Rstat {
-            stat: rs9p_stat_from_unix(&attr, (&fid.path))
+            stat: unpfs_stat_from_unix(&attr, (&fid.path))
         })
     }
 
-    fn rwstat(&mut self, _: &Request) -> rs9p::Result<Fcall> {
+    fn rwstat(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
         Ok(Fcall::Rwstat)
     }
 }

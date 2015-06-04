@@ -3,6 +3,26 @@
 
 extern crate num;
 
+/// The type of I/O
+///
+/// Open mode to be checked against the permissions for the file.
+pub mod om {
+    /// Open for read
+    pub const READ: u8      = 0;
+    /// Write
+    pub const WRITE: u8     = 1;
+    /// Read and write
+    pub const RDWR: u8      = 2;
+    /// Execute, == read but check execute permission
+    pub const EXEC: u8      = 3;
+    /// Or'ed in (except for exec), truncate file first
+    pub const TRUNC: u8     = 16;
+    /// Or'ed in, close on exec
+    pub const CEXEC: u8     = 32;
+    /// Or'ed in, remove on close
+    pub const RCLOSE: u8    = 64;
+}
+
 /// Bits in Qid.typ
 pub mod qt {
     /// Type bit for directories
@@ -46,8 +66,7 @@ pub mod dm {
 /// Server side data type for path tracking
 ///
 /// The server's unique identification for the file being accessed
-#[repr(C, packed)]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Qid {
     /// Specify whether the file is a directory, append-only file, etc.
     pub typ: u8,
@@ -60,7 +79,6 @@ pub struct Qid {
 /// Namespace metadata (somewhat like a unix fstat)
 ///
 /// NOTE: Defined as `Dir` in libc.h of Plan 9
-#[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Stat {
     /// Server type
@@ -115,7 +133,6 @@ impl Data {
 
 enum_from_primitive! {
     /// Message type, 9P operations
-    #[repr(C, packed)]
     #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub enum MsgType {
         Tversion =  100,
@@ -151,7 +168,6 @@ enum_from_primitive! {
 }
 
 /// Envelope for 9P2000 messages
-#[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Msg {
     /// Message type, one of the constants in MsgType
@@ -164,7 +180,6 @@ pub struct Msg {
 }
 
 /// A data type encapsulating the various 9P messages
-#[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Fcall {
     Tversion { msize: u32, version: String },
@@ -194,4 +209,42 @@ pub enum Fcall {
     Rstat { stat: Stat },
     Twstat { fid: u32, stat: Stat },
     Rwstat,
+}
+
+impl Fcall {
+    /// Get request's fid if available
+    pub fn fid(&self) -> Option<u32> {
+        match self {
+            &Fcall::Tattach { fid, .. }     => Some(fid),
+            &Fcall::Twalk { fid, .. }       => Some(fid),
+            &Fcall::Topen { fid, .. }       => Some(fid),
+            &Fcall::Tcreate { fid, .. }     => Some(fid),
+            &Fcall::Tread { fid, .. }       => Some(fid),
+            &Fcall::Twrite { fid, .. }      => Some(fid),
+            &Fcall::Tclunk { fid }          => Some(fid),
+            &Fcall::Tremove { fid }         => Some(fid),
+            &Fcall::Tstat { fid }           => Some(fid),
+            &Fcall::Twstat { fid, .. }      => Some(fid),
+            _ => None
+        }
+    }
+
+    /// Get request's newfid if available
+    pub fn newfid(&self) -> Option<u32> {
+        match self {
+            &Fcall::Twalk { newfid, .. }    => Some(newfid),
+            _ => None
+        }
+    }
+
+    pub fn qid(&self) -> Option<Qid> {
+        match self {
+            &Fcall::Rauth { aqid }          => Some(aqid),
+            &Fcall::Rattach { qid }         => Some(qid),
+            &Fcall::Rwalk { ref wqids }     => wqids.last().map(|q| *q),
+            &Fcall::Ropen { qid, .. }       => Some(qid),
+            &Fcall::Rcreate { qid, .. }     => Some(qid),
+            _ => None
+        }
+    }
 }
