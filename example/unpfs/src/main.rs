@@ -1,33 +1,31 @@
 
 #![feature(metadata_ext)]
-#![feature(dir_entry_ext)]
 
+extern crate nix;
 extern crate rs9p;
 
 use std::{io, fs};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use rs9p::error;
-use rs9p::Request;
-use rs9p::fcall::*;
-use rs9p::serialize::Encodable;
+use rs9p::*;
+use rs9p::errno::*;
 
 #[macro_use]
 mod utils;
 use utils::*;
 
 #[derive(Clone, Debug)]
-struct Fid {
+struct UnpfsFid {
     path: PathBuf,
     realpath: PathBuf,
 }
 
-impl Fid {
-    fn new<P1: ?Sized, P2: ?Sized>(path: &P1, real: &P2) -> Fid
+impl UnpfsFid {
+    fn new<P1: ?Sized, P2: ?Sized>(path: &P1, real: &P2) -> UnpfsFid
         where P1: AsRef<OsStr>, P2: AsRef<OsStr>
     {
-        Fid {
+        UnpfsFid {
             path: Path::new(path).to_path_buf(),
             realpath: Path::new(real).to_path_buf()
         }
@@ -45,108 +43,99 @@ impl Unpfs {
         }
     }
 
-    fn fid_from_realpath(&self, realpath: &Path) -> Fid {
+    fn fid_from_realpath(&self, realpath: &Path) -> UnpfsFid {
         let root_len = self.realroot.to_str().unwrap().len();
         let path = if realpath == self.realroot.as_ref() {
             "/"
         } else {
             &realpath.to_str().unwrap()[root_len..]
         };
-        Fid::new(path, realpath)
+        UnpfsFid::new(path, realpath)
     }
 }
 
 impl rs9p::Filesystem for Unpfs {
-    type Fid = Fid;
+    type Fid = UnpfsFid;
 
-    fn rflush(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Ok(Fcall::Rflush)
+    fn rattach(&mut self, fid: &mut Fid<Self::Fid>, _afid: Option<&mut Fid<Self::Fid>>, _uname: &str, _aname: &str, _n_uname: u32) -> Result<Fcall> {
+        fid.aux = Some(self.fid_from_realpath(&self.realroot));
+        Ok(Fcall::Rattach {
+            qid: try!(get_qid(&self.realroot))
+        })
     }
 
-    fn rattach(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        let qid = try!(get_qid(&self.realroot));
-        req.fid().qid = Some(qid);
-        req.fid().aux = Some(Fid::new("/", &self.realroot));
-        Ok(Fcall::Rattach { qid: qid })
-    }
-
-    fn rwalk(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        let (wnames, newfid) = match req.ifcall {
-            &Fcall::Twalk { ref wnames, newfid, .. } => (wnames.clone(), newfid),
-            _ => unreachable!()
-        };
-
+    fn rwalk(&mut self, fid: &mut Fid<Self::Fid>, newfid: &mut Fid<Self::Fid>, wnames: &[String]) -> Result<Fcall> {
         let mut wqids = Vec::new();
-        let mut result_path = req.fid().aux().realpath.clone();
+        let mut path = fid.aux().realpath.clone();
 
-        if wnames.len() == 0 {
-            req.newfid = req.fid.clone();
-            req.newfid().fid = newfid;
-        } else {
-            for ref name in wnames {
-                result_path.push(name);
-                println!("rwalk: result_path={:?}", result_path);
-                wqids.push( try!(get_qid(&result_path)) );
-            }
-            let newfid = self.fid_from_realpath(&result_path);
-            req.newfid().aux = Some(newfid);
+        for (i, name) in wnames.iter().enumerate() {
+            path.push(name);
+            let qid = match get_qid(&path) {
+                Ok(attr) => attr,
+                Err(e) => if i == 0 { return Err(e) } else { break },
+            };
+            wqids.push(qid);
         }
+        newfid.aux = Some(self.fid_from_realpath(&path));
 
         Ok(Fcall::Rwalk { wqids: wqids })
     }
 
-    fn ropen(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Ok(Fcall::Ropen { qid: *req.fid().qid(), iounit: 8192 })
-    }
-
-    fn rcreate(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Err(error::ENOSYS.to_owned())
-    }
-
-    fn rread(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        let offset = match req.ifcall {
-            &Fcall::Tread { ref offset, .. } => *offset,
-            _ => unreachable!()
-        };
-
-        let mut buf = Vec::new();
-        if offset == 0 && (req.fid().qid().typ & qt::DIR) >= 0 {
-            let mut stats = Vec::new();
-            for entry in try!(fs::read_dir(&req.fid().aux().realpath).or(strerror!(ENOENT))) {
-                let entry = try!(entry.or(strerror!(ENOENT)));
-                let attr = try!(entry.metadata().or(strerror!(ENOENT)));
-                let name = entry.file_name();
-                let stat = unpfs_stat_from_unix(&attr, Path::new(&name));
-                stats.push(stat);
-            }
-            stats.encode(&mut buf);
-        };
-
-        Ok(Fcall::Rread { data: Data::new(buf) })
-    }
-
-    fn rwrite(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Err(error::ENOSYS.to_owned())
-    }
-
-    fn rclunk(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Ok(Fcall::Rclunk)
-    }
-
-    fn rremove(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Ok(Fcall::Rremove)
-    }
-
-    fn rstat(&mut self, req: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        let fid = req.fid().aux();
-        let attr = try!(fs::metadata(&fid.realpath).or(strerror!(ENOENT)));
-        Ok(Fcall::Rstat {
-            stat: unpfs_stat_from_unix(&attr, &fid.path)
+    fn rgetattr(&mut self, fid: &mut Fid<Self::Fid>, req_mask: u64) -> Result<Fcall> {
+        let attr = try!(fs::metadata(&fid.aux().realpath).or(errno!(ENOENT)));
+        Ok(Fcall::Rgetattr {
+            valid: req_mask,
+            qid: try!(get_qid(&fid.aux().realpath)),
+            stat: to_stat(&attr)
         })
     }
 
-    fn rwstat(&mut self, _: &mut Request<Self::Fid>) -> rs9p::Result<Fcall> {
-        Ok(Fcall::Rwstat)
+    fn rreaddir(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, _count: u32) -> Result<Fcall> {
+        let mut dirents = Vec::new();
+
+        if offset != 0 {
+            return Ok(Fcall::Rreaddir { data: DirEntryData::new(Vec::new()) })
+        }
+
+        for entry in try!(fs::read_dir(&fid.aux().realpath).or(errno!(ENOENT))) {
+            let path = try!(entry.or(errno!(ENOENT))).path();
+            let qid = try!(get_qid(&path));
+            let name = path.file_name().unwrap().to_str().unwrap();
+            dirents.push(DirEntry {
+                qid: qid,
+                offset: 1 + name.len() as u64,
+                typ: qid.typ,
+                name: name.to_owned()
+            })
+        }
+
+        Ok(Fcall::Rreaddir { data: DirEntryData::new(dirents) })
+    }
+
+    fn rlopen(&mut self, fid: &mut Fid<Self::Fid>, _flags: u32) -> Result<Fcall> {
+        Ok(Fcall::Rlopen {
+            qid: try!(get_qid(&fid.aux().realpath)),
+            iounit: 8192 - 24
+        })
+    }
+
+    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &Stat)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rlcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32, _mode: u32, _gid: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rmkdir(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _gid: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rrenameat(&mut self, _: &mut Fid<Self::Fid>, _oldname: &str, _: &mut Fid<Self::Fid>, _newname: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+
+    fn rclunk(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Ok(Fcall::Rclunk)
     }
 }
 

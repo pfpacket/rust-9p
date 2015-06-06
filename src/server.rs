@@ -1,18 +1,19 @@
 
 //! Server side 9P library
 
+extern crate nix;
 extern crate byteorder;
 
-use error;
 use serialize;
 use fcall::*;
 use std::{io, result, fmt, thread};
 use std::collections::HashMap;
-use std::net::{SocketAddr, TcpListener};
+use std::net::TcpListener;
 use std::sync::{Mutex, Arc};
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
+use error::number::*;
 
-pub type Result<T> = result::Result<T, String>;
+pub type Result<T> = result::Result<T, nix::Error>;
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
@@ -38,26 +39,6 @@ impl<T> Fid<T> {
     pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
 }
 
-/// The client's request
-#[derive(Clone, Debug)]
-pub struct Request<'a, 'b, T> {
-    /// The request message which a client sent
-    pub ifcall: &'a Fcall,
-    /// The socket address of the remote peer
-    pub remote: &'b SocketAddr,
-    /// Fid associated with the request's fid
-    pub fid: Option<Fid<T>>,
-    /// New fid associated with the Twalk's newfid
-    pub newfid: Option<Fid<T>>,
-}
-
-impl<'a, 'b, T> Request<'a, 'b, T> {
-    /// Unwrap the fid
-    pub fn fid(&mut self) -> &mut Fid<T> { self.fid.as_mut().unwrap() }
-    /// Unwrap the newfid
-    pub fn newfid(&mut self) -> &mut Fid<T> { self.newfid.as_mut().unwrap() }
-}
-
 /// Filesystem server implementation
 ///
 /// Implementors can represent an error condition by
@@ -68,28 +49,78 @@ impl<'a, 'b, T> Request<'a, 'b, T> {
 /// The default implementation, returning ENOSYS error, is provided to the all methods
 /// except Rversion.
 ///
-/// The default implementation of Rversion returns a message accepting 9P2000.
+/// The default implementation of Rversion returns a message accepting 9P2000.L.
+///
+/// Protocol: 9P2000.L
 ///
 /// NOTE: Defined as `Srv` in 9p.h of Plan 9.
 pub trait Filesystem: Send {
     /// User defined fid type to be associated with a client's fid
     type Fid: fmt::Debug = ();
-    fn rauth(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rflush(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rattach(&mut self, _: &mut Request<Self::Fid>)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rwalk(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn ropen(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rcreate(&mut self, _: &mut Request<Self::Fid>)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rread(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rwrite(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rclunk(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rremove(&mut self, _: &mut Request<Self::Fid>)  -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rstat(&mut self, _: &mut Request<Self::Fid>)    -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rwstat(&mut self, _: &mut Request<Self::Fid>)   -> Result<Fcall> { Err(error::ENOSYS.to_owned()) }
-    fn rversion(&mut self, _: &mut Request<Self::Fid>) -> Result<Fcall> {
+
+    // 9P2000.L
+    fn rstatfs(&mut self, _: &mut Fid<Self::Fid>)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rlopen(&mut self, _: &mut Fid<Self::Fid>, _flags: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rlcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32, _mode: u32, _gid: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rsymlink(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _sym: &str, _gid: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rmknod(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _major: u32, _minor: u32, _gid: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rrename(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rreadlink(&mut self, _: &mut Fid<Self::Fid>)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: u64)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &Stat)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rxattrwalk(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rxattrcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _attr_size: u64, _flags: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rreaddir(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rfsync(&mut self, _: &mut Fid<Self::Fid>)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock, _client_id: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock, _client_id: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rlink(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rmkdir(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _gid: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rrenameat(&mut self, _: &mut Fid<Self::Fid>, _oldname: &str, _: &mut Fid<Self::Fid>, _newname: &str)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+
+    // 9P2000.u subset
+    fn rauth(&mut self, _: &mut Fid<Self::Fid>, _uname: &str, _aname: &str, _n_uname: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rattach(&mut self, _: &mut Fid<Self::Fid>, _afid: Option<&mut Fid<Self::Fid>>, _uname: &str, _aname: &str, _n_uname: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+
+    // 9P2000 subset
+    fn rflush(&mut self, _old: Option<&mut Fcall>)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rwalk(&mut self, _: &mut Fid<Self::Fid>, _new: &mut Fid<Self::Fid>, _wnames: &[String])
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rclunk(&mut self, _: &mut Fid<Self::Fid>)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rremove(&mut self, _: &mut Fid<Self::Fid>)
+        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+    fn rversion(&mut self, _msize: u32, _version: &str)      -> Result<Fcall> {
         Ok(Fcall::Rversion {
             msize: 8192,
-            version: "9P2000".to_owned()
+            version: "9P2000.L".to_owned()
         })
     }
 }
@@ -99,52 +130,22 @@ struct ServerInstance<Fs, RwExt>
 {
     fs: Arc<Mutex<Fs>>,
     stream: RwExt,
-    sockaddr: SocketAddr,
     fids: HashMap<u32, Fid<Fs::Fid>>,
-    msize: Option<u32>,
-    uname: Option<String>,
-    aname: Option<String>,
 }
 
 macro_rules! lock { ($mtx:expr) => { $mtx.lock().unwrap() } }
 impl<Fs, RwExt> ServerInstance<Fs, RwExt>
     where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
 {
-    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt, addr: SocketAddr)
+    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt)
         -> io::Result<ServerInstance<Fs, RwExt>>
     {
-        let mut server = ServerInstance {
+        let server = ServerInstance {
             fs: fs,
             stream: stream,
-            sockaddr: addr,
             fids: HashMap::new(),
-            msize: None,
-            uname: None,
-            aname: None,
         };
-
-        try!(server.dispatch_once());
-        if server.msize.is_none() {
-            return io_error!(Other, "Unexpected packet before Tversion")
-        }
-
-        try!(server.dispatch_once());
-        if server.uname.is_none() {
-            return io_error!(Other, "Unexpected packet before Tattach")
-        }
-
         Ok(server)
-    }
-
-    fn dispatch_once(&mut self) -> io::Result<()> {
-        let msg = try!(serialize::read_msg(&mut self.stream));
-        match self.handle_message(msg) {
-            Ok(v) => Ok(v),
-            Err(byteorder::Error::UnexpectedEOF) => {
-                return io_error!(ConnectionRefused, "Unexpected EOF")
-            },
-            Err(byteorder::Error::Io(e))=> { return Err(e) },
-        }
     }
 
     fn dispatch(&mut self) -> io::Result<()> {
@@ -153,96 +154,133 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
         }
     }
 
-    fn rversion(&mut self, req: &mut Request<Fs::Fid>, msize: u32) -> Result<Fcall> {
-        self.msize = Some(msize);
-        lock!(self.fs).rversion(req)
+    fn fid(&mut self, fid: &u32) -> Fid<Fs::Fid> {
+        self.fids.remove(&fid).unwrap()
     }
 
-    fn rattach(&mut self, req: &mut Request<Fs::Fid>, fid: u32, uname: &String, aname: &String) -> Result<Fcall> {
-        self.uname = Some(uname.clone());
-        self.aname = Some(aname.clone());
-        req.fid = Some(Fid { fid: fid, qid: None, aux: None });
-        lock!(self.fs).rattach(req)
+    fn newfid(fid: &u32) -> Fid<Fs::Fid> {
+        Fid { fid: *fid, qid: None, aux: None }
     }
 
-    fn rwalk(&mut self, req: &mut Request<Fs::Fid>, newfid: u32) -> Result<Fcall> {
-        req.newfid = Some(Fid { fid: newfid, qid: None, aux: None });
-        lock!(self.fs).rwalk(req)
-    }
+    fn dispatch_once(&mut self) -> io::Result<MsgType> {
+        let msg = try!(serialize::read_msg(&mut self.stream));
 
-    fn rclunk(&mut self, req: &mut Request<Fs::Fid>, fid: u32) -> Result<Fcall> {
-        self.fids.remove(&fid);
-        lock!(self.fs).rclunk(req)
-    }
-
-    fn register_fids(&mut self, mut req: Request<Fs::Fid>) {
-        if req.fid.is_some() {
-            let fid = req.fid.as_mut().unwrap().fid;
-            self.fids.insert(fid, req.fid.unwrap());
-        }
-
-        if req.newfid.is_some() {
-            let newfid = req.newfid.as_mut().unwrap().fid;
-            self.fids.insert(newfid, req.newfid.unwrap());
-        }
-    }
-
-    fn handle_message(&mut self, msg: Msg) -> byteorder::Result<()> {
-        let fid = msg.body.fid().and_then(|f| self.fids.remove(&f));
-        let mut req = Request {
-            ifcall: &msg.body,
-            remote: &self.sockaddr.clone(),
-            fid: fid, newfid: None
-        };
+        // Take all fids associated with the fids which the request contains
+        let mut fids: Vec<_> = msg.body.fid().iter().map(|f| self.fid(f)).collect();
+        let mut newfids: Vec<_> = msg.body.newfid().iter().map(|f| Self::newfid(f)).collect();
 
         let result = match msg.body {
-            Fcall::Tversion { msize, .. }                       => self.rversion(&mut req, msize),
-            Fcall::Tauth { .. }                                 => lock!(self.fs).rauth(&mut req),
-            Fcall::Tflush { .. }                                => lock!(self.fs).rflush(&mut req),
-            Fcall::Tattach { fid, ref uname, ref aname, .. }    => self.rattach(&mut req, fid, uname, aname),
-            Fcall::Twalk { newfid, .. }                         => self.rwalk(&mut req, newfid),
-            Fcall::Topen { .. }                                 => lock!(self.fs).ropen(&mut req),
-            Fcall::Tcreate { .. }                               => lock!(self.fs).rcreate(&mut req),
-            Fcall::Tread { .. }                                 => lock!(self.fs).rread(&mut req),
-            Fcall::Twrite { .. }                                => lock!(self.fs).rwrite(&mut req),
-            Fcall::Tremove { .. }                               => lock!(self.fs).rremove(&mut req),
-            Fcall::Tclunk { fid }                               => self.rclunk(&mut req, fid),
-            Fcall::Tstat { .. }                                 => lock!(self.fs).rstat(&mut req),
-            Fcall::Twstat { .. }                                => lock!(self.fs).rwstat(&mut req),
-            _ => Err(error::EPROTO.to_owned())
+            Fcall::Tstatfs { fid: _ }                                                       => { lock!(self.fs).rstatfs(&mut fids[0]) },
+            Fcall::Tlopen { fid: _, ref flags }                                             => { lock!(self.fs).rlopen(&mut fids[0], *flags) },
+            Fcall::Tlcreate { fid: _, ref name, ref flags, ref mode, ref gid }              => { lock!(self.fs).rlcreate(&mut fids[0], name, *flags, *mode, *gid) },
+            Fcall::Tsymlink { fid: _, ref name, ref symtgt, ref gid }                       => { lock!(self.fs).rsymlink(&mut fids[0], name, symtgt, *gid) },
+            Fcall::Tmknod { dfid: _, ref name, ref mode, ref major, ref minor, ref gid }    => { lock!(self.fs).rmknod(&mut fids[0], name, *mode, *major, *minor, *gid) },
+            Fcall::Trename { fid: _, dfid: _, ref name }                                    => {
+                let (mut fid, mut dfid) = (fids.remove(0), fids.remove(0));
+                let r = lock!(self.fs).rrename(&mut fid, &mut dfid, name);
+                fids.push(fid); fids.push(dfid);
+                r
+            },
+            Fcall::Treadlink { fid: _ }                                                     => { lock!(self.fs).rreadlink(&mut fids[0]) },
+            Fcall::Tgetattr { fid: _, ref req_mask }                                        => { lock!(self.fs).rgetattr(&mut fids[0], *req_mask) },
+            Fcall::Tsetattr { fid: _, ref valid, ref stat }                                 => { lock!(self.fs).rsetattr(&mut fids[0], *valid, stat) },
+            Fcall::Txattrwalk { fid: _, newfid: _, ref name }                               => { lock!(self.fs).rxattrwalk(&mut fids[0], &mut newfids[0], name) },
+            Fcall::Txattrcreate { fid: _, ref name, ref attr_size, ref flags }              => { lock!(self.fs).rxattrcreate(&mut fids[0], name, *attr_size, *flags) },
+            Fcall::Treaddir { fid: _, ref offset, ref count }                               => { lock!(self.fs).rreaddir(&mut fids[0], *offset, *count) },
+            Fcall::Tfsync { fid: _ }                                                        => { lock!(self.fs).rfsync(&mut fids[0]) },
+            Fcall::Tlock { fid: _, ref flock, ref client_id }                               => { lock!(self.fs).rlock(&mut fids[0], flock, client_id) },
+            Fcall::Tgetlock { fid: _, ref flock, ref client_id }                            => { lock!(self.fs).rgetlock(&mut fids[0], flock, client_id) },
+            Fcall::Tlink { dfid: _, fid: _, ref name }                                      => {
+                let (mut dfid, mut fid) = (fids.remove(0), fids.remove(0));
+                let r = lock!(self.fs).rlink(&mut dfid, &mut fid, name);
+                fids.push(dfid); fids.push(fid);
+                r
+            },
+            Fcall::Tmkdir { dfid: _, ref name, ref mode, ref gid }                          => { lock!(self.fs).rmkdir(&mut fids[0], name, *mode, *gid) },
+            Fcall::Trenameat { olddirfid: _, ref oldname, newdirfid: _, ref newname }       => {
+                let (mut old, mut new) = (fids.remove(0), fids.remove(0));
+                let r = lock!(self.fs).rrenameat(&mut old, oldname, &mut new, newname);
+                fids.push(old); fids.push(new);
+                r
+            },
+            Fcall::Tunlinkat { dirfd: _, ref name, ref flags }                              => { lock!(self.fs).runlinkat(&mut fids[0], name, *flags) },
+
+            // 9P2000.u
+            Fcall::Tauth { afid: _, ref uname, ref aname, ref n_uname }                     => { lock!(self.fs).rauth(&mut newfids[0], uname, aname, *n_uname) },
+            Fcall::Tattach { fid: _, afid: _, ref uname, ref aname, ref n_uname }           => { lock!(self.fs).rattach(&mut newfids[0], None, uname, aname, *n_uname) },
+
+            // 9P2000
+            Fcall::Tversion { ref msize, ref version }                                      => { lock!(self.fs).rversion(*msize, version) },
+            Fcall::Tflush { oldtag: _ }                                                     => { lock!(self.fs).rflush(None) },
+            Fcall::Twalk { fid: _, newfid: _, ref wnames }                                  => { lock!(self.fs).rwalk(&mut fids[0], &mut newfids[0], wnames) },
+            Fcall::Tread { fid: _, ref offset, ref count }                                  => { lock!(self.fs).rread(&mut fids[0], *offset, *count) },
+            Fcall::Twrite { fid: _, ref offset, ref data }                                  => { lock!(self.fs).rwrite(&mut fids[0], *offset, data) },
+            Fcall::Tclunk { fid: _ }                                                        => {
+                let r = lock!(self.fs).rclunk(&mut fids[0]);
+                // Drop the fid which the request contains
+                if r.is_ok() { fids.clear(); }
+                r
+            },
+            Fcall::Tremove { fid: _ }                                                       => { lock!(self.fs).rremove(&mut fids[0]) },
+            _ => return io_error!(Other, "Invalid 9P message received"),
         };
 
-        let res_body = match result {
-            Ok(response) => response,
-            Err(err) => Fcall::Rerror { ename: err }
+        // Restore the fids taken
+        for f in fids { self.fids.insert(f.fid, f); }
+        for f in newfids { self.fids.insert(f.fid, f); }
+
+        let response = match result {
+            Ok(res)  => res,
+            Err(err) => Fcall::Rlerror { ecode: err.errno() as u32 }
         };
 
-        self.register_fids(req);
-        self.response(res_body, msg.tag)
+        try!(self.respond(response, msg.tag));
+        Ok(msg.typ)
     }
 
-    fn response(&mut self, res: Fcall, tag: u16) -> byteorder::Result<()> {
-        let typ = match res {
-            Fcall::Rversion { .. }  => MsgType::Rversion,
-            Fcall::Rauth { .. }     => MsgType::Rauth,
-            Fcall::Rerror { .. }    => MsgType::Rerror,
-            Fcall::Rflush           => MsgType::Rflush,
-            Fcall::Rattach { .. }   => MsgType::Rattach,
-            Fcall::Rwalk { .. }     => MsgType::Rwalk,
-            Fcall::Ropen { .. }     => MsgType::Ropen,
-            Fcall::Rcreate { .. }   => MsgType::Rcreate,
-            Fcall::Rread { .. }     => MsgType::Rread,
-            Fcall::Rwrite { .. }    => MsgType::Rwrite,
-            Fcall::Rclunk           => MsgType::Rclunk,
-            Fcall::Rremove          => MsgType::Rremove,
-            Fcall::Rstat { .. }     => MsgType::Rstat,
-            Fcall::Rwstat           => MsgType::Rwstat,
-            _ => return Err(byteorder::Error::Io(io::Error::new(
-                    io::ErrorKind::Other, "Try to send invalid message in this context"))),
+    fn respond(&mut self, res: Fcall, tag: u16) -> io::Result<MsgType> {
+        let msg_type = match res {
+            // 9P2000.L
+            Fcall::Rlerror { .. }       => MsgType::Rlerror,
+            Fcall::Rstatfs { .. }       => MsgType::Rstatfs,
+            Fcall::Rlopen { .. }        => MsgType::Rlopen,
+            Fcall::Rlcreate { .. }      => MsgType::Rlcreate,
+            Fcall::Rsymlink { .. }      => MsgType::Rsymlink,
+            Fcall::Rmknod { .. }        => MsgType::Rmknod,
+            Fcall::Rrename              => MsgType::Rrename,
+            Fcall::Rreadlink { .. }     => MsgType::Rreadlink,
+            Fcall::Rgetattr { .. }      => MsgType::Rgetattr,
+            Fcall::Rsetattr             => MsgType::Rsetattr,
+            Fcall::Rxattrwalk { .. }    => MsgType::Rxattrwalk,
+            Fcall::Rxattrcreate         => MsgType::Rxattrcreate,
+            Fcall::Rreaddir { .. }      => MsgType::Rreaddir,
+            Fcall::Rfsync               => MsgType::Rfsync,
+            Fcall::Rlock { .. }         => MsgType::Rlock,
+            Fcall::Rgetlock { .. }      => MsgType::Rgetlock,
+            Fcall::Rlink                => MsgType::Rlink,
+            Fcall::Rmkdir { .. }        => MsgType::Rmkdir,
+            Fcall::Rrenameat            => MsgType::Rrenameat,
+            Fcall::Runlinkat            => MsgType::Runlinkat,
+
+            // 9P2000.u
+            Fcall::Rauth { .. }         => MsgType::Rauth,
+            Fcall::Rattach { .. }       => MsgType::Rattach,
+
+            // 9P2000
+            Fcall::Rversion { .. }      => MsgType::Rversion,
+            Fcall::Rflush               => MsgType::Rflush,
+            Fcall::Rwalk { .. }         => MsgType::Rwalk,
+            Fcall::Rread { .. }         => MsgType::Rread,
+            Fcall::Rwrite { .. }        => MsgType::Rwrite,
+            Fcall::Rclunk               => MsgType::Rclunk,
+            Fcall::Rremove              => MsgType::Rremove,
+            _ => return io_error!(Other, "Invalid 9P message in this context"),
         };
 
-        let response_msg = Msg { typ: typ, tag: tag, body: res };
-        serialize::write_msg(&mut self.stream, &response_msg).and(Ok(()))
+        let msg = Msg { typ: msg_type, tag: tag, body: res };
+        try!(serialize::write_msg(&mut self.stream, &msg));
+
+        Ok(msg_type)
     }
 }
 
@@ -272,10 +310,10 @@ pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<(
     let listener = try!(TcpListener::bind(&sockaddr[..]));
 
     loop {
-        let (stream, addr) = try!(listener.accept());
+        let (stream, _) = try!(listener.accept());
         let fs = arc_fs.clone();
         let _ = thread::Builder::new().name(format!("{}", addr)).spawn(move || {
-            let result = try!(ServerInstance::new(fs, stream, addr)).dispatch();
+            let result = try!(ServerInstance::new(fs, stream)).dispatch();
             println!("[!] ServerThread={:?} finished: {:?}",
                 thread::current().name().unwrap_or("NoInfo"), result);
             result
