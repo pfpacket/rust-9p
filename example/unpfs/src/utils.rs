@@ -6,7 +6,6 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-use rs9p::errno::*;
 use rs9p::fcall::*;
 
 #[macro_export]
@@ -24,10 +23,6 @@ macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
         Err(io::Error::new(io::ErrorKind::$kind, $msg))
     }
-}
-
-pub fn unpfs_get_qid_type(attr: &fs::Metadata) -> u8 {
-    if attr.is_dir() { qt::DIR } else { qt::FILE }
 }
 
 pub fn to_stat(attr: &fs::Metadata) -> Stat {
@@ -48,11 +43,24 @@ pub fn to_stat(attr: &fs::Metadata) -> Stat {
 }
 
 pub fn get_qid<T: AsRef<Path>>(path: &T) -> rs9p::Result<Qid> {
-    let attr = try!(fs::metadata(path.as_ref()).or(errno!(ENOENT)));
+    let attr = try!(fs::metadata(path.as_ref()));
+    let mut typ = 0;
+    if attr.is_dir() { typ |= qt::DIR }
+    if attr.file_type().is_symlink() { typ |= qt::SYMLINK }
     Ok(Qid {
-        typ: unpfs_get_qid_type(&attr),
+        typ: typ,
         version: 0,
         path: attr.as_raw().ino()
     })
 }
 
+pub fn get_dirent<T: AsRef<Path>>(path: &T, offset: u64) -> rs9p::Result<DirEntry> {
+    let p = path.as_ref();
+    let name = p.file_name().or(Some(p.as_os_str())).unwrap();
+    Ok(DirEntry {
+        qid: try!(get_qid(&path)),
+        offset: offset,
+        typ: 0,
+        name: name.to_str().unwrap().to_owned()
+    })
+}

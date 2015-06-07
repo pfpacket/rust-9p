@@ -4,6 +4,7 @@
 //! Supported protocol: 9P2000.L
 
 extern crate num;
+use std::mem::{size_of, size_of_val};
 
 /// Old 9P2000 protocol types
 ///
@@ -137,6 +138,10 @@ pub mod qt {
     pub const AUTH: u8      = 0x08;
     /// Type bit for not-backed-up file
     pub const TMP: u8       = 0x04;
+    /// Type bits for symbolic links (9P2000.u)
+	pub const SYMLINK: u8   = 0x02;
+    /// Type bits for hard-link (9P2000.u)
+	pub const LINK: u8      = 0x01;
     /// Plain file
     pub const FILE: u8      = 0x00;
 }
@@ -185,6 +190,14 @@ pub mod setattr {
     pub const MTIME_SET: u32    = 0x00000100;
 }
 
+// 9P Magic Numbers
+pub const NOTAG: u16            = !0;
+pub const NOFID: u32            = !0;
+pub const NONUNAME: u32         = !0;
+pub const IOHDRSZ: u32          = 24;
+/// Room for readdir header
+pub const READDIRHDRSZ: u32     = 24;
+
 /// Server side data type for path tracking
 ///
 /// The server's unique identification for the file being accessed
@@ -207,7 +220,7 @@ pub struct Qid {
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Statfs {
-    /// Type of file system (see below)
+    /// Type of file system
     pub typ: u32,
     /// Optimal transfer block size
     pub bsize: u32,
@@ -272,10 +285,25 @@ pub struct Stat {
 /// Protocol: 9P2000.L
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DirEntry {
+    /// Qid for this directory
     pub qid: Qid,
+    /// The index of this entry
     pub offset: u64,
+    /// Corresponds to `d_type` of `struct dirent`
+    ///
+    /// Use `0` if you can't set this properly. It might be enough.
     pub typ: u8,
+    /// Directory name
     pub name: String
+}
+
+impl DirEntry {
+    pub fn size(&self) -> u32 {
+        (size_of_val(&self.qid) +
+        size_of_val(&self.offset) +
+        size_of_val(&self.typ) +
+        size_of::<u16>() + self.name.len()) as u32
+    }
 }
 
 /// Directory entry array
@@ -283,8 +311,15 @@ pub struct DirEntry {
 pub struct DirEntryData(Vec<DirEntry>);
 
 impl DirEntryData {
-    pub fn new(v: Vec<DirEntry>) -> DirEntryData { DirEntryData(v) }
+    pub fn new() -> DirEntryData { Self::with(Vec::new()) }
+    pub fn with(v: Vec<DirEntry>) -> DirEntryData { DirEntryData(v) }
     pub fn data(&self) -> &[DirEntry] { &self.0 }
+    pub fn size(&self) -> u32 {
+        self.0.iter().fold(0, |a, e| a + e.size()) as u32
+    }
+    pub fn push(&mut self, entry: DirEntry) {
+        self.0.push(entry);
+    }
 }
 
 /// Data type used in Rread and Twrite

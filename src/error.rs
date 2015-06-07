@@ -8,11 +8,107 @@
 //!
 //! Protocol: 9P2000
 
-pub mod number {
+extern crate nix;
+
+use std::{io, fmt};
+use std::io::ErrorKind::*;
+use std::error as stderror;
+use error::errno::*;
+
+fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
+    e.raw_os_error()
+        .map(|n| nix::errno::from_i32(n))
+        .unwrap_or(match e.kind() {
+            NotFound            => ENOENT,
+            PermissionDenied    => EPERM,
+            ConnectionRefused   => ECONNREFUSED,
+            ConnectionReset     => ECONNRESET,
+            ConnectionAborted   => ECONNABORTED,
+            NotConnected        => ENOTCONN,
+            AddrInUse           => EADDRINUSE,
+            AddrNotAvailable    => EADDRNOTAVAIL,
+            BrokenPipe          => EPIPE,
+            AlreadyExists       => EALREADY,
+            WouldBlock          => EAGAIN,
+            InvalidInput        => EINVAL,
+            TimedOut            => ETIMEDOUT,
+            WriteZero           => EAGAIN,
+            Interrupted         => EINTR,
+            Other | _           => EIO,
+        }
+    )
+}
+
+/// 9P error type which is convertible to an errno.
+///
+/// The value of `Error::errno()` will be used for Rlerror.
+#[derive(Debug)]
+pub enum Error {
+    /// System error from an errno
+    No(nix::errno::Errno),
+    /// I/O error
+    Io(io::Error)
+}
+
+impl Error {
+    /// Convert to an errno
+    pub fn errno(&self) -> nix::errno::Errno {
+        match *self {
+            Error::No(ref e) => e.clone(),
+            Error::Io(ref e) => errno_from_ioerror(e)
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::No(ref e) => write!(f, "System error: {}", e.desc()),
+            Error::Io(ref e) => write!(f, "I/O error: {}", e),
+        }
+    }
+}
+
+impl stderror::Error for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::No(ref e) => e.desc(),
+            Error::Io(ref e) => e.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&stderror::Error> {
+        match *self {
+            Error::No(_) => None,
+            Error::Io(ref e) => Some(e),
+        }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self { Error::Io(e) }
+}
+
+impl<'a> From<&'a io::Error> for Error {
+    fn from(e: &'a io::Error) -> Self { Error::No(errno_from_ioerror(e)) }
+}
+
+impl From<nix::errno::Errno> for Error {
+    fn from(e: nix::errno::Errno) -> Self { Error::No(e) }
+}
+
+impl From<nix::Error> for Error {
+    fn from(e: nix::Error) -> Self { Error::No(e.errno()) }
+}
+
+//
+/// Errno, error numbers
+pub mod errno {
     extern crate nix;
     pub use self::nix::errno::Errno::*;
 }
 
+/// 9P error strings
 pub mod string {
     pub const EPERM: &'static str               = "Operation not permitted";
     pub const EPERM_WSTAT: &'static str         = "wstat prohibited";

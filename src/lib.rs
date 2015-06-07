@@ -9,8 +9,9 @@ extern crate log;
 #[macro_use]
 extern crate enum_primitive;
 
-pub use error::number as errno;
+pub use error::errno as errno;
 pub use error::string as errstr;
+pub use error::Error;
 pub use fcall::*;
 pub use server::{Fid, Filesystem, srv, Result};
 

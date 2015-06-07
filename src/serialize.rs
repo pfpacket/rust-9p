@@ -140,7 +140,7 @@ impl Encodable for DirEntry {
 impl Encodable for DirEntryData {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let mut bytes = 0;
-        bytes += try!(((self.data().len() * mem::size_of::<Stat>()) as u32).encode(w));
+        bytes += try!(self.size().encode(w));
         for entry in self.data() {
             bytes += try!(entry.encode(w));
         }
@@ -372,7 +372,7 @@ impl Decodable for DirEntryData {
         for _ in 0..count {
             data.push(try!(Decodable::decode(r)));
         }
-        Ok(DirEntryData::new(data))
+        Ok(DirEntryData::with(data))
     }
 }
 

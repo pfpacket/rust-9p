@@ -6,14 +6,15 @@ extern crate byteorder;
 
 use serialize;
 use fcall::*;
-use std::{io, result, fmt, thread};
+use std::{io, result, thread};
 use std::collections::HashMap;
 use std::net::TcpListener;
 use std::sync::{Mutex, Arc};
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
-use error::number::*;
+use error;
+use error::errno::*;
 
-pub type Result<T> = result::Result<T, nix::Error>;
+pub type Result<T> = result::Result<T, error::Error>;
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
@@ -56,67 +57,68 @@ impl<T> Fid<T> {
 /// NOTE: Defined as `Srv` in 9p.h of Plan 9.
 pub trait Filesystem: Send {
     /// User defined fid type to be associated with a client's fid
-    type Fid: fmt::Debug = ();
+    type Fid = ();
+    //type Fid: fmt::Debug = ();
 
     // 9P2000.L
     fn rstatfs(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rlopen(&mut self, _: &mut Fid<Self::Fid>, _flags: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rlcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32, _mode: u32, _gid: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rsymlink(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _sym: &str, _gid: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rmknod(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _major: u32, _minor: u32, _gid: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rrename(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rreadlink(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: u64)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &Stat)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rxattrwalk(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rxattrcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _attr_size: u64, _flags: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rreaddir(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rfsync(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock, _client_id: &str)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock, _client_id: &str)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rlink(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rmkdir(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _gid: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rrenameat(&mut self, _: &mut Fid<Self::Fid>, _oldname: &str, _: &mut Fid<Self::Fid>, _newname: &str)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
 
     // 9P2000.u subset
     fn rauth(&mut self, _: &mut Fid<Self::Fid>, _uname: &str, _aname: &str, _n_uname: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rattach(&mut self, _: &mut Fid<Self::Fid>, _afid: Option<&mut Fid<Self::Fid>>, _uname: &str, _aname: &str, _n_uname: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
 
     // 9P2000 subset
     fn rflush(&mut self, _old: Option<&mut Fcall>)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rwalk(&mut self, _: &mut Fid<Self::Fid>, _new: &mut Fid<Self::Fid>, _wnames: &[String])
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rclunk(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rremove(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(nix::Error::from_errno(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rversion(&mut self, _msize: u32, _version: &str)      -> Result<Fcall> {
         Ok(Fcall::Rversion {
             msize: 8192,
@@ -310,10 +312,14 @@ pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<(
     let listener = try!(TcpListener::bind(&sockaddr[..]));
 
     loop {
-        let (stream, _) = try!(listener.accept());
+        let (stream, remote) = try!(listener.accept());
         let fs = arc_fs.clone();
-        let _ = thread::Builder::new().name(format!("{}", addr)).spawn(move || {
+        let _ = thread::Builder::new().name(format!("{}", remote)).spawn(move || {
+            println!("[!] ServerThread={:?} started",
+                thread::current().name().unwrap_or("NoInfo"));
+
             let result = try!(ServerInstance::new(fs, stream)).dispatch();
+
             println!("[!] ServerThread={:?} finished: {:?}",
                 thread::current().name().unwrap_or("NoInfo"), result);
             result
