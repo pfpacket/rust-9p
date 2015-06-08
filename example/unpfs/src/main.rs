@@ -20,16 +20,18 @@ use utils::*;
 
 struct UnpfsFid {
     realpath: PathBuf,
-    readdir: Option<fs::ReadDir>,
     file: Option<fs::File>,
+    readdir: Option<std::iter::Enumerate<fs::ReadDir>>,
+    peeked_dir: Option<DirEntry>,
 }
 
 impl UnpfsFid {
     fn new<P: ?Sized>(path: &P) -> UnpfsFid where P: AsRef<OsStr> {
         UnpfsFid {
             realpath: Path::new(path).to_path_buf(),
-            readdir: None,
             file: None,
+            readdir: None,
+            peeked_dir: None,
         }
     }
 }
@@ -78,7 +80,7 @@ impl rs9p::Filesystem for Unpfs {
         })
     }
 
-    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &SetAttr) -> Result<Fcall> {
+    fn rsetattr(&mut self, _fid: &mut Fid<Self::Fid>, _valid: u32, _stat: &SetAttr) -> Result<Fcall> {
         Err(rs9p::Error::No(ENOSYS))
     }
 
@@ -86,24 +88,25 @@ impl rs9p::Filesystem for Unpfs {
         let aux = fid.aux();
         let mut dirents = DirEntryData::new();
 
-        let prepos = if offset == 0 {
-            aux.readdir = Some(try!(fs::read_dir(&aux.realpath)));
+        if offset == 0 {
+            aux.readdir = Some(try!(fs::read_dir(&aux.realpath)).enumerate());
             dirents.push(try!(get_dirent(&".", 0)));
             dirents.push(try!(get_dirent(&"..", 1)));
-            2
-        } else { 0 };
+        }
 
-        let mut it = aux.readdir.as_mut().unwrap().enumerate().peekable();
-        loop {
-            match it.peek() {
-                Some(&(i, ref entry)) => {
-                    let path = try!(entry.as_ref()).path();
-                    let dirent = try!(get_dirent(&path, (prepos + i) as u64));
-                    if dirents.size() + dirent.size() > count { break; }
-                    dirents.push(dirent);
-                }, None => break
+        if let Some(ref dirent) = aux.peeked_dir {
+            dirents.push(dirent.clone());
+        }
+        aux.peeked_dir = None;
+
+        for (i, entry) in aux.readdir.as_mut().unwrap() {
+            let path = try!(entry.as_ref()).path();
+            let dirent = try!(get_dirent(&path, 2 + i as u64));
+            if dirents.size() + dirent.size() > count {
+                aux.peeked_dir = Some(dirent);
+                break;
             }
-            let _ = it.next();
+            dirents.push(dirent);
         }
 
         Ok(Fcall::Rreaddir { data: dirents })

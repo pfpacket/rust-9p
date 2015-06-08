@@ -35,7 +35,7 @@ pub struct Fid<T> {
 }
 
 impl<T> Fid<T> {
-    /// Unwrap the aux and returns a reference to it
+    /// Unwrap and return a reference to the aux
     pub fn aux(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
     pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
 }
