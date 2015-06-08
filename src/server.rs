@@ -77,7 +77,7 @@ pub trait Filesystem: Send {
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: u64)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &Stat)
+    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &SetAttr)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rxattrwalk(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }

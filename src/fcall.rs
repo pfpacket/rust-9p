@@ -280,6 +280,18 @@ pub struct Stat {
     pub ctime: Time,
 }
 
+/// Subset of Stat used for Tsetattr
+#[repr(C, packed)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SetAttr {
+    pub mode: u32,
+    pub uid: u32,
+    pub gid: u32,
+    pub size: u64,
+    pub atime: Time,
+    pub mtime: Time,
+}
+
 /// Directory entry used in `Rreaddir`
 ///
 /// Protocol: 9P2000.L
@@ -458,7 +470,7 @@ pub enum Fcall {
     Rreadlink { target: String },
     Tgetattr { fid: u32, req_mask: u64 },
     Rgetattr { valid: u64, qid: Qid, stat: Stat /* reserved members are handled in En/Decodable traits */ },
-    Tsetattr { fid: u32, valid: u32, stat: Stat },
+    Tsetattr { fid: u32, valid: u32, stat: SetAttr },
     Rsetattr,
     Txattrwalk { fid: u32, newfid: u32, name: String },
     Rxattrwalk { size: u64 },

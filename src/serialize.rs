@@ -126,6 +126,19 @@ impl Encodable for Stat {
     }
 }
 
+impl Encodable for SetAttr {
+    fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
+        let mut bytes = 0;
+        bytes += try!(self.mode.encode(w));
+        bytes += try!(self.uid.encode(w));
+        bytes += try!(self.gid.encode(w));
+        bytes += try!(self.size.encode(w));
+        bytes += try!(self.atime.encode(w));
+        bytes += try!(self.mtime.encode(w));
+        Ok(bytes)
+    }
+}
+
 impl Encodable for DirEntry {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let mut bytes = 0;
@@ -350,6 +363,19 @@ impl Decodable for Stat {
             atime: try!(Decodable::decode(r)),
             mtime: try!(Decodable::decode(r)),
             ctime: try!(Decodable::decode(r)),
+        })
+    }
+}
+
+impl Decodable for SetAttr {
+    fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
+        Ok(SetAttr {
+            mode: try!(Decodable::decode(r)),
+            uid: try!(Decodable::decode(r)),
+            gid: try!(Decodable::decode(r)),
+            size: try!(Decodable::decode(r)),
+            atime: try!(Decodable::decode(r)),
+            mtime: try!(Decodable::decode(r)),
         })
     }
 }

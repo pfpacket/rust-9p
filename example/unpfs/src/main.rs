@@ -9,6 +9,7 @@ use std::fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::io::{self, Seek, SeekFrom, Read, Write};
+use std::os::unix::io::FromRawFd;
 
 use rs9p::*;
 use rs9p::errno::*;
@@ -77,7 +78,7 @@ impl rs9p::Filesystem for Unpfs {
         })
     }
 
-    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &Stat) -> Result<Fcall> {
+    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &SetAttr) -> Result<Fcall> {
         Err(rs9p::Error::No(ENOSYS))
     }
 
@@ -108,9 +109,18 @@ impl rs9p::Filesystem for Unpfs {
         Ok(Fcall::Rreaddir { data: dirents })
     }
 
-    fn rlopen(&mut self, fid: &mut Fid<Self::Fid>, _flags: u32) -> Result<Fcall> {
+    fn rlopen(&mut self, fid: &mut Fid<Self::Fid>, flags: u32) -> Result<Fcall> {
+        let qid = try!(get_qid(&fid.aux().realpath));
+
+        if !(qid.typ & qt::DIR >= 1) {
+            let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
+            let omode = nix::sys::stat::Mode::from_bits_truncate(0);
+            let fd = try!(nix::fcntl::open(&fid.aux().realpath, oflags, omode));
+            fid.aux().file = unsafe { Some(fs::File::from_raw_fd(fd)) };
+        }
+
         Ok(Fcall::Rlopen {
-            qid: try!(get_qid(&fid.aux().realpath)),
+            qid: qid,
             iounit: 8192 - rs9p::IOHDRSZ
         })
     }
@@ -119,10 +129,10 @@ impl rs9p::Filesystem for Unpfs {
         let path = fid.aux().realpath.join(name);
         let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
         let omode = nix::sys::stat::Mode::from_bits_truncate(mode);
-
         let fd = try!(nix::fcntl::open(&path, oflags, omode));
-        let _ = nix::unistd::close(fd);
+
         fid.aux = Some(UnpfsFid::new(&path));
+        fid.aux().file = unsafe { Some(fs::File::from_raw_fd(fd)) };
 
         Ok(Fcall::Rlcreate {
             qid: try!(get_qid(&path)),
@@ -131,14 +141,6 @@ impl rs9p::Filesystem for Unpfs {
     }
 
     fn rread(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
-        if fid.aux().file.is_none() {
-            let file = fs::OpenOptions::new()
-                .write(true)
-                .read(true)
-                .open(&fid.aux().realpath);
-            fid.aux().file = Some(try!(file));
-        }
-
         let file = fid.aux().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
 
@@ -150,14 +152,6 @@ impl rs9p::Filesystem for Unpfs {
     }
 
     fn rwrite(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, data: &Data) -> Result<Fcall> {
-        if fid.aux().file.is_none() {
-            let file = fs::OpenOptions::new()
-                .write(true)
-                .read(true)
-                .open(&fid.aux().realpath);
-            fid.aux().file = Some(try!(file));
-        }
-
         let file = fid.aux().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
 
