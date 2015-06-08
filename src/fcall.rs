@@ -139,9 +139,9 @@ pub mod qt {
     /// Type bit for not-backed-up file
     pub const TMP: u8       = 0x04;
     /// Type bits for symbolic links (9P2000.u)
-	pub const SYMLINK: u8   = 0x02;
+    pub const SYMLINK: u8   = 0x02;
     /// Type bits for hard-link (9P2000.u)
-	pub const LINK: u8      = 0x01;
+    pub const LINK: u8      = 0x01;
     /// Plain file
     pub const FILE: u8      = 0x00;
 }
@@ -234,7 +234,7 @@ pub struct Statfs {
     pub files: u64,
     /// Free file nodes in fs
     pub ffree: u64,
-    /// File system id
+    /// Filesystem ID
     pub fsid: u64,
     /// Maximum length of filenames
     pub namelen: u32,
@@ -356,6 +356,20 @@ pub struct Flock {
     pub start: u64,
     pub length: u64,
     pub proc_id: u32,
+    pub client_id: String,
+}
+
+/// Getlock structure
+///
+/// Protocol: 9P2000.L
+#[repr(C, packed)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Getlock {
+    pub typ: u8,
+    pub start: u64,
+    pub length: u64,
+    pub proc_id: u32,
+    pub client_id: String,
 }
 
 // Commented out the types not used in 9P2000.L
@@ -480,10 +494,10 @@ pub enum Fcall {
     Rreaddir { data: DirEntryData },
     Tfsync { fid: u32 },
     Rfsync,
-    Tlock { fid: u32, flock: Flock, client_id: String },
+    Tlock { fid: u32, flock: Flock },
     Rlock { status: u8 },
-    Tgetlock { fid: u32, flock: Flock, client_id: String },
-    Rgetlock { flock: Flock, client_id: String },
+    Tgetlock { fid: u32, flock: Getlock },
+    Rgetlock { flock: Getlock },
     Tlink { dfid: u32, fid: u32, name: String },
     Rlink,
     Tmkdir { dfid: u32, name: String, mode: u32, gid: u32 },

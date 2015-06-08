@@ -178,6 +178,19 @@ impl Encodable for Flock {
         bytes += try!(self.start.encode(w));
         bytes += try!(self.length.encode(w));
         bytes += try!(self.proc_id.encode(w));
+        bytes += try!(self.client_id.encode(w));
+        Ok(bytes)
+    }
+}
+
+impl Encodable for Getlock {
+    fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
+        let mut bytes = 0;
+        bytes += try!(self.typ.encode(w));
+        bytes += try!(self.start.encode(w));
+        bytes += try!(self.length.encode(w));
+        bytes += try!(self.proc_id.encode(w));
+        bytes += try!(self.client_id.encode(w));
         Ok(bytes)
     }
 }
@@ -232,10 +245,10 @@ impl Encodable for Msg {
             Fcall::Rreaddir { ref data }                                                    => { encode!(buf, data); },
             Fcall::Tfsync { ref fid }                                                       => { encode!(buf, fid); },
             Fcall::Rfsync                                                                   => {},
-            Fcall::Tlock { ref fid, ref flock, ref client_id }                              => { encode!(buf, fid, flock, client_id); },
+            Fcall::Tlock { ref fid, ref flock }                                             => { encode!(buf, fid, flock ); },
             Fcall::Rlock { ref status }                                                     => { encode!(buf, status); },
-            Fcall::Tgetlock { ref fid, ref flock, ref client_id }                           => { encode!(buf, fid, flock, client_id); },
-            Fcall::Rgetlock { ref flock, ref client_id }                                    => { encode!(buf, flock, client_id); },
+            Fcall::Tgetlock { ref fid, ref flock }                                          => { encode!(buf, fid, flock); },
+            Fcall::Rgetlock { ref flock }                                                   => { encode!(buf, flock); },
             Fcall::Tlink { ref dfid, ref fid, ref name }                                    => { encode!(buf, dfid, fid, name); },
             Fcall::Rlink                                                                    => {},
             Fcall::Tmkdir { ref dfid, ref name, ref mode, ref gid }                         => { encode!(buf, dfid, name, mode, gid); },
@@ -418,6 +431,19 @@ impl Decodable for Flock {
             start: try!(Decodable::decode(r)),
             length: try!(Decodable::decode(r)),
             proc_id: try!(Decodable::decode(r)),
+            client_id: try!(Decodable::decode(r)),
+        })
+    }
+}
+
+impl Decodable for Getlock {
+    fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
+        Ok(Getlock {
+            typ: try!(Decodable::decode(r)),
+            start: try!(Decodable::decode(r)),
+            length: try!(Decodable::decode(r)),
+            proc_id: try!(Decodable::decode(r)),
+            client_id: try!(Decodable::decode(r)),
         })
     }
 }
@@ -481,10 +507,10 @@ impl Decodable for Msg {
             Some(MsgType::Rreaddir)     => Fcall::Rreaddir { data: decode!(buf) },
             Some(MsgType::Tfsync)       => Fcall::Tfsync { fid: decode!(buf) },
             Some(MsgType::Rfsync)       => Fcall::Rfsync,
-            Some(MsgType::Tlock)        => Fcall::Tlock { fid: decode!(buf), flock: decode!(buf), client_id: decode!(buf) },
+            Some(MsgType::Tlock)        => Fcall::Tlock { fid: decode!(buf), flock: decode!(buf) },
             Some(MsgType::Rlock)        => Fcall::Rlock { status: decode!(buf) },
-            Some(MsgType::Tgetlock)     => Fcall::Tgetlock { fid: decode!(buf), flock: decode!(buf), client_id: decode!(buf) },
-            Some(MsgType::Rgetlock)     => Fcall::Rgetlock { flock: decode!(buf), client_id: decode!(buf) },
+            Some(MsgType::Tgetlock)     => Fcall::Tgetlock { fid: decode!(buf), flock: decode!(buf) },
+            Some(MsgType::Rgetlock)     => Fcall::Rgetlock { flock: decode!(buf) },
             Some(MsgType::Tlink)        => Fcall::Tlink { dfid: decode!(buf), fid: decode!(buf), name: decode!(buf) },
             Some(MsgType::Rlink)        => Fcall::Rlink,
             Some(MsgType::Tmkdir)       => Fcall::Tmkdir { dfid: decode!(buf), name: decode!(buf), mode: decode!(buf), gid: decode!(buf) },

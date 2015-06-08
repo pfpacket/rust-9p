@@ -87,9 +87,9 @@ pub trait Filesystem: Send {
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rfsync(&mut self, _: &mut Fid<Self::Fid>)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock, _client_id: &str)
+    fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock, _client_id: &str)
+    fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Getlock)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rlink(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
@@ -190,8 +190,8 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
             Fcall::Txattrcreate { fid: _, ref name, ref attr_size, ref flags }              => { lock!(self.fs).rxattrcreate(&mut fids[0], name, *attr_size, *flags) },
             Fcall::Treaddir { fid: _, ref offset, ref count }                               => { lock!(self.fs).rreaddir(&mut fids[0], *offset, *count) },
             Fcall::Tfsync { fid: _ }                                                        => { lock!(self.fs).rfsync(&mut fids[0]) },
-            Fcall::Tlock { fid: _, ref flock, ref client_id }                               => { lock!(self.fs).rlock(&mut fids[0], flock, client_id) },
-            Fcall::Tgetlock { fid: _, ref flock, ref client_id }                            => { lock!(self.fs).rgetlock(&mut fids[0], flock, client_id) },
+            Fcall::Tlock { fid: _, ref flock }                                              => { lock!(self.fs).rlock(&mut fids[0], flock) },
+            Fcall::Tgetlock { fid: _, ref flock }                                           => { lock!(self.fs).rgetlock(&mut fids[0], flock) },
             Fcall::Tlink { dfid: _, fid: _, ref name }                                      => {
                 let (mut dfid, mut fid) = (fids.remove(0), fids.remove(0));
                 let r = lock!(self.fs).rlink(&mut dfid, &mut fid, name);
