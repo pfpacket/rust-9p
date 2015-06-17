@@ -11,7 +11,7 @@ pub use error::errno as errno;
 pub use error::string as errstr;
 pub use error::Error;
 pub use fcall::*;
-pub use server::{Fid, Filesystem, srv_mt, Result};
+pub use server::{Fid, Filesystem, Result, srv, srv_mt};
 
 pub mod error;
 pub mod fcall;

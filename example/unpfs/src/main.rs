@@ -205,7 +205,7 @@ impl rs9p::Filesystem for Unpfs {
     }
 }
 
-fn unpfs_main(args: Vec<String>) -> io::Result<i32> {
+fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
     if args.len() < 3 {
         println!("Usage: {} proto!address!port mountpoint", args[0]);
         println!("  where: proto = tcp | unix");
@@ -223,6 +223,7 @@ fn unpfs_main(args: Vec<String>) -> io::Result<i32> {
 
     println!("[*] Ready to accept clients: {}", args[1]);
     try!(rs9p::srv_mt(Unpfs::new(mountpoint), &args[1]));
+    //try!(rs9p::srv(Unpfs::new(mountpoint), &args[1]));
 
     return Ok(0);
 }
