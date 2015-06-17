@@ -1,7 +1,4 @@
 
-#![feature(file_type)]
-#![feature(metadata_ext)]
-
 extern crate nix;
 extern crate rs9p;
 
@@ -9,10 +6,8 @@ use std::fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::io::{self, Seek, SeekFrom, Read, Write};
-use std::os::unix::io::FromRawFd;
-
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use rs9p::*;
-use rs9p::errno::*;
 
 #[macro_use]
 mod utils;
@@ -72,7 +67,7 @@ impl rs9p::Filesystem for Unpfs {
     }
 
     fn rgetattr(&mut self, fid: &mut Fid<Self::Fid>, req_mask: u64) -> Result<Fcall> {
-        let attr = try!(fs::metadata(&fid.aux().realpath));
+        let attr = try!(fs::symlink_metadata(&fid.aux().realpath));
         Ok(Fcall::Rgetattr {
             valid: req_mask,
             qid: try!(get_qid(&fid.aux().realpath)),
@@ -80,8 +75,21 @@ impl rs9p::Filesystem for Unpfs {
         })
     }
 
-    fn rsetattr(&mut self, _fid: &mut Fid<Self::Fid>, _valid: u32, _stat: &SetAttr) -> Result<Fcall> {
-        Err(rs9p::Error::No(ENOSYS))
+    fn rsetattr(&mut self, fid: &mut Fid<Self::Fid>, valid: u32, stat: &SetAttr) -> Result<Fcall> {
+        if valid & setattr::MODE >= 1 { try!(chmod(&fid.aux().realpath, stat.mode)); }
+        if valid & setattr::UID >= 1 { try!(chown(&fid.aux().realpath, Some(stat.uid), None)); }
+        if valid & setattr::GID >= 1 { try!(chown(&fid.aux().realpath, None, Some(stat.gid))); }
+        if valid & setattr::SIZE >= 1 {}
+        if valid & setattr::ATIME >= 1 {}
+        if valid & setattr::MTIME >= 1 {}
+        if valid & setattr::CTIME >= 1 {}
+        Ok(Fcall::Rsetattr)
+    }
+
+    fn rreadlink(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        let link = try!(fs::read_link(&fid.aux().realpath));
+        let target = pathconv(&link, &self.realroot);
+        Ok(Fcall::Rreadlink { target: target.to_str().unwrap().to_owned() })
     }
 
     fn rreaddir(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
@@ -178,13 +186,18 @@ impl rs9p::Filesystem for Unpfs {
 
     fn runlinkat(&mut self, dirfid: &mut Fid<Self::Fid>, name: &str, _flags: u32) -> Result<Fcall> {
         let path = dirfid.aux().realpath.join(name);
-        let attr = try!(fs::metadata(&path));
-        if attr.is_file() {
-            try!(fs::remove_file(&path));
-        } else {
+        let attr = try!(fs::symlink_metadata(&path));
+        if attr.is_dir() {
             try!(fs::remove_dir(&path));
+        } else {
+            try!(fs::remove_file(&path));
         }
         Ok(Fcall::Runlinkat)
+    }
+
+    fn rfsync(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        try!(fsync(fid.aux().file.as_mut().unwrap().as_raw_fd()));
+        Ok(Fcall::Rfsync)
     }
 
     fn rclunk(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
@@ -209,7 +222,7 @@ fn unpfs_main(args: Vec<String>) -> io::Result<i32> {
     }));
 
     println!("[*] Ready to accept clients: {}", args[1]);
-    try!(rs9p::srv(Unpfs::new(mountpoint), &args[1]));
+    try!(rs9p::srv_mt(Unpfs::new(mountpoint), &args[1]));
 
     return Ok(0);
 }
@@ -218,13 +231,7 @@ fn main() {
     let args = std::env::args().collect();
     let exit_code = match unpfs_main(args) {
         Ok(code) => code,
-        Err(e) => {
-            if e.kind() == io::ErrorKind::ConnectionRefused {
-                0
-            } else {
-                println!("Error: {:?}", e); -1
-            }
-        }
+        Err(e) => { println!("Error: {:?}", e); -1 }
     };
     std::process::exit(exit_code);
 }

@@ -35,9 +35,10 @@ pub struct Fid<T> {
 }
 
 impl<T> Fid<T> {
+    /// Unwrap and return a reference to the qid
+    pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
     /// Unwrap and return a reference to the aux
     pub fn aux(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
-    pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
 }
 
 /// Filesystem server implementation
@@ -55,7 +56,7 @@ impl<T> Fid<T> {
 /// Protocol: 9P2000.L
 ///
 /// NOTE: Defined as `Srv` in 9p.h of Plan 9.
-pub trait Filesystem: Send {
+pub trait Filesystem {
     /// User defined fid type to be associated with a client's fid
     type Fid = ();
     //type Fid: fmt::Debug = ();
@@ -119,7 +120,7 @@ pub trait Filesystem: Send {
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rremove(&mut self, _: &mut Fid<Self::Fid>)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rversion(&mut self, _msize: u32, _version: &str)      -> Result<Fcall> {
+    fn rversion(&mut self, _msize: u32, _version: &str) -> Result<Fcall> {
         Ok(Fcall::Rversion {
             msize: 8192,
             version: "9P2000.L".to_owned()
@@ -299,13 +300,13 @@ fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
 ///
 /// This function invokes a new thread to handle its 9P messages
 /// when a client connects to the server.
-pub fn srv<Fs: Filesystem + 'static>(filesystem: Fs, addr: &str) -> io::Result<()> {
+pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> io::Result<()> {
     let (proto, sockaddr) = try!(parse_proto(addr).or(
         io_error!(InvalidInput, "Invalid protocol or address")
     ));
 
     if proto != "tcp" {
-        return io_error!(InvalidInput, "Unsupported protocol");
+        return io_error!(InvalidInput, format!("Unsupported protocol: {}", proto));
     }
 
     let arc_fs = Arc::new(Mutex::new(filesystem));

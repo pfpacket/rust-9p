@@ -1,8 +1,6 @@
 
 //! A library to deal with 9P protocol, a network filesystem
 
-#![feature(metadata_ext)]
-
 #[macro_use]
 extern crate log;
 
@@ -13,7 +11,7 @@ pub use error::errno as errno;
 pub use error::string as errstr;
 pub use error::Error;
 pub use fcall::*;
-pub use server::{Fid, Filesystem, srv, Result};
+pub use server::{Fid, Filesystem, srv_mt, Result};
 
 pub mod error;
 pub mod fcall;

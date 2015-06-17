@@ -5,8 +5,6 @@
 //! All imported from include/net/9p/error.c of Linux kernel
 //!
 //! Since 9P2000.L, errors are represented as error numbers (errno).
-//!
-//! Protocol: 9P2000
 
 extern crate nix;
 
@@ -42,6 +40,8 @@ fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
 /// 9P error type which is convertible to an errno.
 ///
 /// The value of `Error::errno()` will be used for Rlerror.
+///
+/// Protocol: 9P2000.L
 #[derive(Debug)]
 pub enum Error {
     /// System error from an errno
@@ -101,7 +101,6 @@ impl From<nix::Error> for Error {
     fn from(e: nix::Error) -> Self { Error::No(e.errno()) }
 }
 
-//
 /// Errno, error numbers
 pub mod errno {
     extern crate nix;
@@ -109,6 +108,8 @@ pub mod errno {
 }
 
 /// 9P error strings
+///
+/// Protocol: 9P2000
 pub mod string {
     pub const EPERM: &'static str               = "Operation not permitted";
     pub const EPERM_WSTAT: &'static str         = "wstat prohibited";

@@ -16,9 +16,17 @@ macro_rules! io_error {
     }
 }
 
+// Create an unintialized buffer
+// Safe to use only for writing data to it
+fn create_buffer(size: usize) -> Vec<u8> {
+    let mut buffer = Vec::with_capacity(size);
+    unsafe { buffer.set_len(size); }
+    buffer
+}
+
 fn read_exact<R: Read>(r: &mut R, size: usize) -> Result<Vec<u8>> {
     let mut pos = 0;
-    let mut buf = vec![0; size];
+    let mut buf = create_buffer(size);
     loop {
         let bytes_read = try!(r.read(&mut buf[pos..]));
         pos += bytes_read;
@@ -47,22 +55,19 @@ impl Encodable for u8 {
 
 impl Encodable for u16 {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        w.write_u16::<LittleEndian>(*self)
-            .and(Ok(mem::size_of::<Self>()))
+        w.write_u16::<LittleEndian>(*self).and(Ok(mem::size_of::<Self>()))
     }
 }
 
 impl Encodable for u32 {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        w.write_u32::<LittleEndian>(*self)
-            .and(Ok(mem::size_of::<Self>()))
+        w.write_u32::<LittleEndian>(*self).and(Ok(mem::size_of::<Self>()))
     }
 }
 
 impl Encodable for u64 {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        w.write_u64::<LittleEndian>(*self)
-            .and(Ok(mem::size_of::<Self>()))
+        w.write_u64::<LittleEndian>(*self).and(Ok(mem::size_of::<Self>()))
     }
 }
 
@@ -76,7 +81,8 @@ impl Encodable for String {
 
 impl Encodable for Qid {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = try!(self.typ.encode(w));
+        let mut bytes = 0;
+        bytes += try!(self.typ.encode(w));
         bytes += try!(self.version.encode(w));
         bytes += try!(self.path.encode(w));
         Ok(bytes)
@@ -631,7 +637,7 @@ fn msg_encode_decode1() {
         tag: 0xdead,
         body: Fcall::Rversion {
             msize: 40,
-            version: "9P2000".to_owned()
+            version: P92000L.to_owned()
         }
     };
     let mut buf = Vec::new();

@@ -6,6 +6,11 @@
 extern crate num;
 use std::mem::{size_of, size_of_val};
 
+/// 9P2000 version string
+pub const P92000: &'static str = "9P2000";
+/// 9P2000.L version string
+pub const P92000L: &'static str = "9P2000.L";
+
 /// Old 9P2000 protocol types
 ///
 /// The types in this module are not used 9P2000.L
