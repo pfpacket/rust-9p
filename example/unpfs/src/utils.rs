@@ -70,7 +70,7 @@ pub fn fsync<T: AsRawFd>(fd: &T) -> rs9p::Result<()> {
 pub fn get_qid<T: AsRef<Path>>(path: &T) -> rs9p::Result<Qid> {
     let attr = try!(fs::metadata(path.as_ref()));
     Ok(Qid {
-        typ: QidType::from_metadata(&attr),
+        typ: From::from(attr.file_type()),
         version: 0,
         path: attr.ino()
     })

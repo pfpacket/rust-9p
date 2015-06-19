@@ -9,9 +9,12 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 
 /// 9P2000 version string
-pub const P92000: &'static str = "9P2000";
+pub const P92000: &'static str  = "9P2000";
 /// 9P2000.L version string
 pub const P92000L: &'static str = "9P2000.L";
+
+/// v9fs default port
+pub const V9FS_PORT: u16        = 564;
 
 // 9P Magic Numbers
 pub const NOTAG: u16            = !0;
@@ -70,7 +73,7 @@ pub mod p92000 {
     /// Plan 9 Namespace metadata (somewhat like a unix fstat)
     ///
     /// NOTE: Defined as `Dir` in libc.h of Plan 9
-    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Stat {
         /// Server type
         pub typ: u16,
@@ -154,6 +157,8 @@ pub use self::lstatus::LockStatus;
 
 /// Bits in Qid.typ
 ///
+/// QidType can be constructed from std::fs::FileType via From trait
+///
 /// Protocol: 9P2000/9P2000.L
 pub mod qt {
     use std::fs;
@@ -180,15 +185,17 @@ pub mod qt {
         }
     }
 
-    impl QidType {
-        /// Get Qid.typ from std::fs::Metadata
-        pub fn from_metadata(attr: &fs::Metadata) -> Self {
-            let mut qid_type = Self::empty();
+    impl From<fs::FileType> for QidType {
+        fn from(typ: fs::FileType) -> Self {
+            From::from(&typ)
+        }
+    }
 
-            let file_type = attr.file_type();
-            if file_type.is_dir() { qid_type.insert(DIR) }
-            if file_type.is_symlink() { qid_type.insert(SYMLINK) }
-
+    impl<'a> From<&'a fs::FileType> for QidType {
+        fn from(typ: &'a fs::FileType) -> Self {
+            let mut qid_type = FILE;
+            if typ.is_dir() { qid_type.insert(DIR) }
+            if typ.is_symlink() { qid_type.insert(SYMLINK) }
             qid_type
         }
     }
@@ -255,7 +262,7 @@ pub use self::setattr::SetattrMask;
 ///
 /// Protocol: 9P2000/9P2000.L
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Qid {
     /// Specify whether the file is a directory, append-only file, etc.
     pub typ: QidType,
@@ -269,7 +276,7 @@ pub struct Qid {
 /// 
 /// Protocol: 9P2000.L
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Statfs {
     /// Type of file system
     pub typ: u32,
@@ -295,7 +302,7 @@ pub struct Statfs {
 ///
 /// Protocol: 9P2000.L
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Time {
     pub sec: u64,
     pub nsec: u64,
@@ -307,7 +314,7 @@ pub struct Time {
 ///
 /// Protocol: 9P2000.L
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Stat {
     /// Protection
     pub mode: u32,
@@ -360,7 +367,7 @@ impl<'a> From<&'a fs::Metadata> for Stat {
 
 /// Subset of Stat used for Tsetattr
 #[repr(C, packed)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SetAttr {
     pub mode: u32,
     pub uid: u32,
@@ -373,7 +380,7 @@ pub struct SetAttr {
 /// Directory entry used in `Rreaddir`
 ///
 /// Protocol: 9P2000.L
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirEntry {
     /// Qid for this directory
     pub qid: Qid,
@@ -397,7 +404,7 @@ impl DirEntry {
 }
 
 /// Directory entry array
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirEntryData(Vec<DirEntry>);
 
 impl DirEntryData {
@@ -415,7 +422,7 @@ impl DirEntryData {
 /// Data type used in Rread and Twrite
 ///
 /// Protocol: 9P2000/9P2000.L
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Data(Vec<u8>);
 
 impl Data {
@@ -427,7 +434,7 @@ impl Data {
 ///
 /// Protocol: 9P2000.L
 #[repr(C, packed)]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flock {
     pub typ: LockType,
     pub flags: LockFlag,
@@ -441,7 +448,7 @@ pub struct Flock {
 ///
 /// Protocol: 9P2000.L
 #[repr(C, packed)]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Getlock {
     pub typ: LockType,
     pub start: u64,
@@ -453,7 +460,7 @@ pub struct Getlock {
 // Commented out the types not used in 9P2000.L
 enum_from_primitive! {
     #[doc = "Message type, 9P operations"]
-    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum MsgType {
         // 9P2000.L
         Tlerror         = 6,    // Illegal, never used
@@ -530,7 +537,7 @@ enum_from_primitive! {
 }
 
 /// Envelope for 9P messages
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Msg {
     /// Message type, one of the constants in MsgType
     pub typ: MsgType,
@@ -542,7 +549,7 @@ pub struct Msg {
 }
 
 /// A data type encapsulating the various 9P messages
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Fcall {
     // 9P2000.L
     Rlerror { ecode: u32 },
