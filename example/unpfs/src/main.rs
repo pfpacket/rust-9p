@@ -6,7 +6,7 @@ use std::fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::io::{self, Seek, SeekFrom, Read, Write};
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::FromRawFd;
 use rs9p::*;
 
 #[macro_use]
@@ -66,23 +66,23 @@ impl rs9p::Filesystem for Unpfs {
         Ok(Fcall::Rwalk { wqids: wqids })
     }
 
-    fn rgetattr(&mut self, fid: &mut Fid<Self::Fid>, req_mask: u64) -> Result<Fcall> {
+    fn rgetattr(&mut self, fid: &mut Fid<Self::Fid>, req_mask: GetattrMask) -> Result<Fcall> {
         let attr = try!(fs::symlink_metadata(&fid.aux().realpath));
         Ok(Fcall::Rgetattr {
             valid: req_mask,
             qid: try!(get_qid(&fid.aux().realpath)),
-            stat: to_stat(&attr)
+            stat: From::from(attr)
         })
     }
 
-    fn rsetattr(&mut self, fid: &mut Fid<Self::Fid>, valid: u32, stat: &SetAttr) -> Result<Fcall> {
-        if valid & setattr::MODE >= 1 { try!(chmod(&fid.aux().realpath, stat.mode)); }
-        if valid & setattr::UID >= 1 { try!(chown(&fid.aux().realpath, Some(stat.uid), None)); }
-        if valid & setattr::GID >= 1 { try!(chown(&fid.aux().realpath, None, Some(stat.gid))); }
-        if valid & setattr::SIZE >= 1 {}
-        if valid & setattr::ATIME >= 1 {}
-        if valid & setattr::MTIME >= 1 {}
-        if valid & setattr::CTIME >= 1 {}
+    fn rsetattr(&mut self, fid: &mut Fid<Self::Fid>, valid: SetattrMask, stat: &SetAttr) -> Result<Fcall> {
+        if valid.contains(setattr::MODE) { try!(chmod(&fid.aux().realpath, stat.mode)); }
+        if valid.contains(setattr::UID) { try!(chown(&fid.aux().realpath, Some(stat.uid), None)); }
+        if valid.contains(setattr::GID) { try!(chown(&fid.aux().realpath, None, Some(stat.gid))); }
+        if valid.contains(setattr::SIZE) {}
+        if valid.contains(setattr::ATIME) {}
+        if valid.contains(setattr::MTIME) {}
+        if valid.contains(setattr::CTIME) {}
         Ok(Fcall::Rsetattr)
     }
 
@@ -123,7 +123,7 @@ impl rs9p::Filesystem for Unpfs {
     fn rlopen(&mut self, fid: &mut Fid<Self::Fid>, flags: u32) -> Result<Fcall> {
         let qid = try!(get_qid(&fid.aux().realpath));
 
-        if !(qid.typ & qt::DIR >= 1) {
+        if !qid.typ.contains(qt::DIR) {
             let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
             let omode = nix::sys::stat::Mode::from_bits_truncate(0);
             let fd = try!(nix::fcntl::open(&fid.aux().realpath, oflags, omode));
@@ -196,7 +196,7 @@ impl rs9p::Filesystem for Unpfs {
     }
 
     fn rfsync(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        try!(fsync(fid.aux().file.as_mut().unwrap().as_raw_fd()));
+        try!(fsync(fid.aux().file.as_mut().unwrap()));
         Ok(Fcall::Rfsync)
     }
 

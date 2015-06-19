@@ -9,10 +9,11 @@ name = "rs9p"
 crate-type = ["rlib"]
 
 [dependencies]
+libc = "*"
 time = "*"
 log = "*"
 num = "*"
-enum_primitive = "*"
-byteorder = "*"
 nix = "*"
-libc = "*"
+byteorder = "*"
+bitflags = "*"
+enum_primitive = "*"

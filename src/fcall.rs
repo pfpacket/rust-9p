@@ -5,16 +5,26 @@
 
 extern crate num;
 use std::mem::{size_of, size_of_val};
+use std::fs;
+use std::os::unix::fs::MetadataExt;
 
 /// 9P2000 version string
 pub const P92000: &'static str = "9P2000";
 /// 9P2000.L version string
 pub const P92000L: &'static str = "9P2000.L";
 
+// 9P Magic Numbers
+pub const NOTAG: u16            = !0;
+pub const NOFID: u32            = !0;
+pub const NONUNAME: u32         = !0;
+pub const IOHDRSZ: u32          = 24;
+/// Room for readdir header
+pub const READDIRHDRSZ: u32     = 24;
+
 /// Old 9P2000 protocol types
 ///
 /// The types in this module are not used 9P2000.L
-pub mod rs9p2000 {
+pub mod p92000 {
     /// The type of I/O
     ///
     /// Open mode to be checked against the permissions for the file.
@@ -102,80 +112,119 @@ pub mod rs9p2000 {
             self.gid.len() + self.muid.len()) as u16
         }
     }
-}   // pub mod rs9p2000
+}   // pub mod p92000
 
 /// File lock type, Flock.typ
 pub mod ltype {
-    pub const RDLOCK: u8    = 0;
-    pub const WRLOCK: u8    = 1;
-    pub const UNLOCK: u8    = 2;
+    bitflags! {
+        flags LockType: u8 {
+            const RDLOCK    = 0,
+            const WRLOCK    = 1,
+            const UNLOCK    = 2,
+        }
+    }
 }
+pub use self::ltype::LockType;
 
 /// File lock flags, Flock.flags
 pub mod lflag {
-    /// Blocking request
-    pub const BLOCK: u32    = 1;
-    /// Reserved for future use
-    pub const RECLAIM: u32  = 2;
+    bitflags! {
+        flags LockFlag: u32 {
+            #[doc = "Blocking request"]
+            const BLOCK     = 1,
+            #[doc = "Reserved for future use"]
+            const RECLAIM   = 2,
+        }
+    }
 }
+pub use self::lflag::LockFlag;
 
 /// File lock status
 pub mod lstatus {
-    pub const SUCCESS: u8   = 0;
-    pub const BLOCKED: u8   = 1;
-    pub const ERROR: u8     = 2;
-    pub const GRACE: u8     = 3;
+    bitflags! {
+        flags LockStatus: u8 {
+            const SUCCESS   = 0,
+            const BLOCKED   = 1,
+            const ERROR     = 2,
+            const GRACE     = 3,
+        }
+    }
 }
+pub use self::lstatus::LockStatus;
 
 /// Bits in Qid.typ
 ///
 /// Protocol: 9P2000/9P2000.L
 pub mod qt {
-    /// Type bit for directories
-    pub const DIR: u8       = 0x80;
-    /// Type bit for append only files
-    pub const APPEND: u8    = 0x40;
-    /// Type bit for exclusive use files
-    pub const EXCL: u8      = 0x20;
-    /// Type bit for mounted channel
-    pub const MOUNT: u8     = 0x10;
-    /// Type bit for authentication file
-    pub const AUTH: u8      = 0x08;
-    /// Type bit for not-backed-up file
-    pub const TMP: u8       = 0x04;
-    /// Type bits for symbolic links (9P2000.u)
-    pub const SYMLINK: u8   = 0x02;
-    /// Type bits for hard-link (9P2000.u)
-    pub const LINK: u8      = 0x01;
-    /// Plain file
-    pub const FILE: u8      = 0x00;
+    use std::fs;
+    bitflags! {
+        flags QidType: u8 {
+            #[doc = "Type bit for directories"]
+            const DIR       = 0x80,
+            #[doc = "Type bit for append only files"]
+            const APPEND    = 0x40,
+            #[doc = "Type bit for exclusive use files"]
+            const EXCL      = 0x20,
+            #[doc = "Type bit for mounted channel"]
+            const MOUNT     = 0x10,
+            #[doc = "Type bit for authentication file"]
+            const AUTH      = 0x08,
+            #[doc = "Type bit for not-backed-up file"]
+            const TMP       = 0x04,
+            #[doc = "Type bits for symbolic links (9P2000.u)"]
+            const SYMLINK   = 0x02,
+            #[doc = "Type bits for hard-link (9P2000.u)"]
+            const LINK      = 0x01,
+            #[doc = "Plain file"]
+            const FILE      = 0x00,
+        }
+    }
+
+    impl QidType {
+        /// Get Qid.typ from std::fs::Metadata
+        pub fn from_metadata(attr: &fs::Metadata) -> Self {
+            let mut qid_type = Self::empty();
+
+            let file_type = attr.file_type();
+            if file_type.is_dir() { qid_type.insert(DIR) }
+            if file_type.is_symlink() { qid_type.insert(SYMLINK) }
+
+            qid_type
+        }
+    }
 }
+pub use self::qt::QidType;
 
 /// Bits in `mask` and `valid` of `Tgetattr` and `Rgetattr`.
 ///
 /// Protocol: 9P2000.L
 pub mod getattr {
-    pub const MODE: u64         = 0x00000001;
-    pub const NLINK: u64        = 0x00000002;
-    pub const UID: u64          = 0x00000004;
-    pub const GID: u64          = 0x00000008;
-    pub const RDEV: u64         = 0x00000010;
-    pub const ATIME: u64        = 0x00000020;
-    pub const MTIME: u64        = 0x00000040;
-    pub const CTIME: u64        = 0x00000080;
-    pub const INO: u64          = 0x00000100;
-    pub const SIZE: u64         = 0x00000200;
-    pub const BLOCKS: u64       = 0x00000400;
+    bitflags! {
+        flags GetattrMask: u64 {
+            const MODE          = 0x00000001,
+            const NLINK         = 0x00000002,
+            const UID           = 0x00000004,
+            const GID           = 0x00000008,
+            const RDEV          = 0x00000010,
+            const ATIME         = 0x00000020,
+            const MTIME         = 0x00000040,
+            const CTIME         = 0x00000080,
+            const INO           = 0x00000100,
+            const SIZE          = 0x00000200,
+            const BLOCKS        = 0x00000400,
 
-    pub const BTIME: u64        = 0x00000800;
-    pub const GEN: u64          = 0x00001000;
-    pub const DATA_VERSION: u64 = 0x00002000;
+            const BTIME         = 0x00000800,
+            const GEN           = 0x00001000,
+            const DATA_VERSION  = 0x00002000,
 
-    /// Mask for fields up to BLOCKS
-    pub const BASIC: u64        = 0x000007ff;
-    /// Mask for All fields above
-    pub const ALL: u64          = 0x00003fff;
+            #[doc = "Mask for fields up to BLOCKS"]
+            const BASIC         =0x000007ff,
+            #[doc = "Mask for All fields above"]
+            const ALL           = 0x00003fff,
+        }
+    }
 }
+pub use self::getattr::GetattrMask;
 
 /// Bits in `mask` of `Tsetattr`.
 ///
@@ -184,24 +233,21 @@ pub mod getattr {
 ///
 /// Protocol: 9P2000.L
 pub mod setattr {
-    pub const MODE: u32         = 0x00000001;
-    pub const UID: u32          = 0x00000002;
-    pub const GID: u32          = 0x00000004;
-    pub const SIZE: u32         = 0x00000008;
-    pub const ATIME: u32        = 0x00000010;
-    pub const MTIME: u32        = 0x00000020;
-    pub const CTIME: u32        = 0x00000040;
-    pub const ATIME_SET: u32    = 0x00000080;
-    pub const MTIME_SET: u32    = 0x00000100;
+    bitflags! {
+        flags SetattrMask: u32 {
+            const MODE      = 0x00000001,
+            const UID       = 0x00000002,
+            const GID       = 0x00000004,
+            const SIZE      = 0x00000008,
+            const ATIME     = 0x00000010,
+            const MTIME     = 0x00000020,
+            const CTIME     = 0x00000040,
+            const ATIME_SET = 0x00000080,
+            const MTIME_SET = 0x00000100,
+        }
+    }
 }
-
-// 9P Magic Numbers
-pub const NOTAG: u16            = !0;
-pub const NOFID: u32            = !0;
-pub const NONUNAME: u32         = !0;
-pub const IOHDRSZ: u32          = 24;
-/// Room for readdir header
-pub const READDIRHDRSZ: u32     = 24;
+pub use self::setattr::SetattrMask;
 
 /// Server side data type for path tracking
 ///
@@ -212,7 +258,7 @@ pub const READDIRHDRSZ: u32     = 24;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Qid {
     /// Specify whether the file is a directory, append-only file, etc.
-    pub typ: u8,
+    pub typ: QidType,
     /// Version number for a file; typically, it is incremented every time the file is modified
     pub version: u32,
     /// An integer which is unique among all files in the hierarchy
@@ -257,6 +303,8 @@ pub struct Time {
 
 /// File attributes corresponding to `struct stat` of Linux.
 ///
+/// Stat can be constructed from std::fs::Metadata via From trait
+///
 /// Protocol: 9P2000.L
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -283,6 +331,31 @@ pub struct Stat {
     pub mtime: Time,
     /// Time of last status change
     pub ctime: Time,
+}
+
+impl From<fs::Metadata> for Stat {
+    fn from(attr: fs::Metadata) -> Self {
+        From::from(&attr)
+    }
+}
+
+// Default conversion from metadata of libstd
+impl<'a> From<&'a fs::Metadata> for Stat {
+    fn from(attr: &'a fs::Metadata) -> Self {
+        Stat {
+            mode: attr.mode(),
+            uid: attr.uid(),
+            gid: attr.gid(),
+            nlink: attr.nlink(),
+            rdev: attr.rdev(),
+            size: attr.size() as u64,
+            blksize: attr.blksize() as u64,
+            blocks: attr.blocks() as u64,
+            atime: Time { sec: attr.atime() as u64, nsec: attr.atime_nsec() as u64 },
+            mtime: Time { sec: attr.mtime() as u64, nsec: attr.mtime_nsec() as u64 },
+            ctime: Time { sec: attr.ctime() as u64, nsec: attr.ctime_nsec() as u64 },
+        }
+    }
 }
 
 /// Subset of Stat used for Tsetattr
@@ -356,8 +429,8 @@ impl Data {
 #[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Flock {
-    pub typ: u8,
-    pub flags: u32,
+    pub typ: LockType,
+    pub flags: LockFlag,
     pub start: u64,
     pub length: u64,
     pub proc_id: u32,
@@ -370,7 +443,7 @@ pub struct Flock {
 #[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Getlock {
-    pub typ: u8,
+    pub typ: LockType,
     pub start: u64,
     pub length: u64,
     pub proc_id: u32,
@@ -379,11 +452,11 @@ pub struct Getlock {
 
 // Commented out the types not used in 9P2000.L
 enum_from_primitive! {
-    /// Message type, 9P operations
+    #[doc = "Message type, 9P operations"]
     #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub enum MsgType {
         // 9P2000.L
-        Tlerror         = 6,
+        Tlerror         = 6,    // Illegal, never used
         Rlerror,
         Tstatfs         = 8,
         Rstatfs,
@@ -487,9 +560,9 @@ pub enum Fcall {
     Rrename,
     Treadlink { fid: u32 },
     Rreadlink { target: String },
-    Tgetattr { fid: u32, req_mask: u64 },
-    Rgetattr { valid: u64, qid: Qid, stat: Stat /* reserved members are handled in En/Decodable traits */ },
-    Tsetattr { fid: u32, valid: u32, stat: SetAttr },
+    Tgetattr { fid: u32, req_mask: GetattrMask },
+    Rgetattr { valid: GetattrMask, qid: Qid, stat: Stat /* reserved members are handled in En/Decodable traits */ },
+    Tsetattr { fid: u32, valid: SetattrMask, stat: SetAttr },
     Rsetattr,
     Txattrwalk { fid: u32, newfid: u32, name: String },
     Rxattrwalk { size: u64 },
@@ -500,7 +573,7 @@ pub enum Fcall {
     Tfsync { fid: u32 },
     Rfsync,
     Tlock { fid: u32, flock: Flock },
-    Rlock { status: u8 },
+    Rlock { status: LockStatus },
     Tgetlock { fid: u32, flock: Getlock },
     Rgetlock { flock: Getlock },
     Tlink { dfid: u32, fid: u32, name: String },

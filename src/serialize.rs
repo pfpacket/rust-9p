@@ -16,6 +16,16 @@ macro_rules! io_error {
     }
 }
 
+macro_rules! decode {
+    ($decoder:expr) => {
+        try!(Decodable::decode(&mut $decoder))
+    }
+}
+
+macro_rules! decode_trunc {
+    ($typ:ident, $buf:expr) => { $typ::from_bits_truncate(decode!($buf)) }
+}
+
 // Create an unintialized buffer
 // Safe to use only for writing data to it
 fn create_buffer(size: usize) -> Vec<u8> {
@@ -82,7 +92,7 @@ impl Encodable for String {
 impl Encodable for Qid {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let mut bytes = 0;
-        bytes += try!(self.typ.encode(w));
+        bytes += try!(self.typ.bits().encode(w));
         bytes += try!(self.version.encode(w));
         bytes += try!(self.path.encode(w));
         Ok(bytes)
@@ -179,8 +189,8 @@ impl Encodable for Data {
 impl Encodable for Flock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let mut bytes = 0;
-        bytes += try!(self.typ.encode(w));
-        bytes += try!(self.flags.encode(w));
+        bytes += try!(self.typ.bits().encode(w));
+        bytes += try!(self.flags.bits().encode(w));
         bytes += try!(self.start.encode(w));
         bytes += try!(self.length.encode(w));
         bytes += try!(self.proc_id.encode(w));
@@ -192,7 +202,7 @@ impl Encodable for Flock {
 impl Encodable for Getlock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let mut bytes = 0;
-        bytes += try!(self.typ.encode(w));
+        bytes += try!(self.typ.bits().encode(w));
         bytes += try!(self.start.encode(w));
         bytes += try!(self.length.encode(w));
         bytes += try!(self.proc_id.encode(w));
@@ -239,9 +249,9 @@ impl Encodable for Msg {
             Fcall::Rrename                                                                  => {},
             Fcall::Treadlink { ref fid }                                                    => { encode!(buf, fid); },
             Fcall::Rreadlink { ref target }                                                 => { encode!(buf, target); },
-            Fcall::Tgetattr { ref fid, ref req_mask }                                       => { encode!(buf, fid, req_mask); },
-            Fcall::Rgetattr { ref valid, ref qid, ref stat }                                => { encode!(buf, valid, qid, stat, 0u64, 0u64, 0u64, 0u64); },
-            Fcall::Tsetattr { ref fid, ref valid, ref stat }                                => { encode!(buf, fid, valid, stat); },
+            Fcall::Tgetattr { ref fid, ref req_mask }                                       => { encode!(buf, fid, req_mask.bits()); },
+            Fcall::Rgetattr { ref valid, ref qid, ref stat }                                => { encode!(buf, valid.bits(), qid, stat, 0u64, 0u64, 0u64, 0u64); },
+            Fcall::Tsetattr { ref fid, ref valid, ref stat }                                => { encode!(buf, fid, valid.bits(), stat); },
             Fcall::Rsetattr                                                                 => {},
             Fcall::Txattrwalk { ref fid, ref newfid, ref name }                             => { encode!(buf, fid, newfid, name); },
             Fcall::Rxattrwalk { ref size }                                                  => { encode!(buf, size); },
@@ -252,7 +262,7 @@ impl Encodable for Msg {
             Fcall::Tfsync { ref fid }                                                       => { encode!(buf, fid); },
             Fcall::Rfsync                                                                   => {},
             Fcall::Tlock { ref fid, ref flock }                                             => { encode!(buf, fid, flock ); },
-            Fcall::Rlock { ref status }                                                     => { encode!(buf, status); },
+            Fcall::Rlock { ref status }                                                     => { encode!(buf, status.bits()); },
             Fcall::Tgetlock { ref fid, ref flock }                                          => { encode!(buf, fid, flock); },
             Fcall::Rgetlock { ref flock }                                                   => { encode!(buf, flock); },
             Fcall::Tlink { ref dfid, ref fid, ref name }                                    => { encode!(buf, dfid, fid, name); },
@@ -336,7 +346,7 @@ impl Decodable for String {
 impl Decodable for Qid {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Qid {
-            typ:     try!(Decodable::decode(r)),
+            typ: decode_trunc!(QidType, *r),
             version: try!(Decodable::decode(r)),
             path:    try!(Decodable::decode(r))
         })
@@ -432,8 +442,8 @@ impl Decodable for Data {
 impl Decodable for Flock {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Flock {
-            typ: try!(Decodable::decode(r)),
-            flags: try!(Decodable::decode(r)),
+            typ: decode_trunc!(LockType, *r),
+            flags: decode_trunc!(LockFlag, *r),
             start: try!(Decodable::decode(r)),
             length: try!(Decodable::decode(r)),
             proc_id: try!(Decodable::decode(r)),
@@ -445,7 +455,7 @@ impl Decodable for Flock {
 impl Decodable for Getlock {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Getlock {
-            typ: try!(Decodable::decode(r)),
+            typ: decode_trunc!(LockType, *r),
             start: try!(Decodable::decode(r)),
             length: try!(Decodable::decode(r)),
             proc_id: try!(Decodable::decode(r)),
@@ -470,12 +480,6 @@ impl Decodable for Msg {
         let size = try!(r.read_u32::<LittleEndian>()) - 4;
         let mut buf = Cursor::new(try!(read_exact(r, size as usize)));
 
-        macro_rules! decode {
-            ($decoder:expr) => {
-                try!(Decodable::decode(&mut $decoder))
-            }
-        }
-
         let msg_type = MsgType::from_u8(decode!(buf));
         let tag = decode!(buf);
         let body = match msg_type {
@@ -495,15 +499,15 @@ impl Decodable for Msg {
             Some(MsgType::Rrename)      => Fcall::Rrename,
             Some(MsgType::Treadlink)    => Fcall::Treadlink { fid: decode!(buf) },
             Some(MsgType::Rreadlink)    => Fcall::Rreadlink { target: decode!(buf) },
-            Some(MsgType::Tgetattr)     => Fcall::Tgetattr { fid: decode!(buf), req_mask: decode!(buf) },
+            Some(MsgType::Tgetattr)     => Fcall::Tgetattr { fid: decode!(buf), req_mask: decode_trunc!(GetattrMask, buf) },
             Some(MsgType::Rgetattr)     => {
-                let r = Fcall::Rgetattr { valid: decode!(buf), qid: decode!(buf), stat: decode!(buf) };
+                let r = Fcall::Rgetattr { valid: decode_trunc!(GetattrMask, buf), qid: decode!(buf), stat: decode!(buf) };
                 let _btime: Time = decode!(buf);
                 let _gen: u64 = decode!(buf);
                 let _data_version: u64 = decode!(buf);
                 r
             },
-            Some(MsgType::Tsetattr)     => Fcall::Tsetattr { fid: decode!(buf), valid: decode!(buf), stat: decode!(buf) },
+            Some(MsgType::Tsetattr)     => Fcall::Tsetattr { fid: decode!(buf), valid: decode_trunc!(SetattrMask, buf), stat: decode!(buf) },
             Some(MsgType::Rsetattr)     => Fcall::Rsetattr,
             Some(MsgType::Txattrwalk)   => Fcall::Txattrwalk { fid: decode!(buf), newfid: decode!(buf), name: decode!(buf) },
             Some(MsgType::Rxattrwalk)   => Fcall::Rxattrwalk { size: decode!(buf) },
@@ -514,7 +518,7 @@ impl Decodable for Msg {
             Some(MsgType::Tfsync)       => Fcall::Tfsync { fid: decode!(buf) },
             Some(MsgType::Rfsync)       => Fcall::Rfsync,
             Some(MsgType::Tlock)        => Fcall::Tlock { fid: decode!(buf), flock: decode!(buf) },
-            Some(MsgType::Rlock)        => Fcall::Rlock { status: decode!(buf) },
+            Some(MsgType::Rlock)        => Fcall::Rlock { status: decode_trunc!(LockStatus, buf) },
             Some(MsgType::Tgetlock)     => Fcall::Tgetlock { fid: decode!(buf), flock: decode!(buf) },
             Some(MsgType::Rgetlock)     => Fcall::Rgetlock { flock: decode!(buf) },
             Some(MsgType::Tlink)        => Fcall::Tlink { dfid: decode!(buf), fid: decode!(buf), name: decode!(buf) },

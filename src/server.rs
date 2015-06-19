@@ -62,7 +62,6 @@ impl<T> Fid<T> {
 pub trait Filesystem {
     /// User defined fid type to be associated with a client's fid
     type Fid = ();
-    //type Fid: fmt::Debug = ();
 
     // 9P2000.L
     fn rstatfs(&mut self, _: &mut Fid<Self::Fid>)
@@ -79,9 +78,9 @@ pub trait Filesystem {
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rreadlink(&mut self, _: &mut Fid<Self::Fid>)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: u64)
+    fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: GetattrMask)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: u32, _stat: &SetAttr)
+    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: SetattrMask, _stat: &SetAttr)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rxattrwalk(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
@@ -339,7 +338,9 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
         return try!(io_error!(InvalidInput, format!("Unsupported protocol: {}", proto)));
     }
 
+    // Do not wait for child processes
     unsafe { libc::funcs::posix01::signal::signal(nix::sys::signal::SIGCHLD, libc::SIG_IGN); }
+
     let listener = try!(TcpListener::bind(&sockaddr[..]));
 
     loop {
