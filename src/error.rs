@@ -42,7 +42,8 @@ fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
 ///
 /// The value of `Error::errno()` will be used for Rlerror.
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[derive(Debug)]
 pub enum Error {
     /// System error containing an errno
@@ -119,7 +120,8 @@ pub mod errno {
 
 /// 9P error strings
 ///
-/// Protocol: 9P2000
+/// # Protocol
+/// 9P2000
 pub mod string {
     pub const EPERM: &'static str               = "Operation not permitted";
     pub const EPERM_WSTAT: &'static str         = "wstat prohibited";

@@ -46,7 +46,7 @@ impl<T> Fid<T> {
     /// Unwrap and return a reference to the aux
     ///
     /// # Panics
-    /// Calling this method on an aux which is None will panic
+    /// Calling this method on an aux which is None will cause a panic
     pub fn aux(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
 }
 
