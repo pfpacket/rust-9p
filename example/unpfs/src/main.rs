@@ -7,6 +7,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::io::{self, Seek, SeekFrom, Read, Write};
 use std::os::unix::io::FromRawFd;
+use std::os::unix::fs::PermissionsExt;
 use rs9p::*;
 
 #[macro_use]
@@ -76,9 +77,17 @@ impl rs9p::Filesystem for Unpfs {
     }
 
     fn rsetattr(&mut self, fid: &mut Fid<Self::Fid>, valid: SetattrMask, stat: &SetAttr) -> Result<Fcall> {
-        if valid.contains(setattr::MODE) { try!(chmod(&fid.aux().realpath, stat.mode)); }
-        if valid.contains(setattr::UID) { try!(chown(&fid.aux().realpath, Some(stat.uid), None)); }
-        if valid.contains(setattr::GID) { try!(chown(&fid.aux().realpath, None, Some(stat.gid))); }
+        if valid.contains(setattr::MODE) {
+            try!(fs::set_permissions(
+                &fid.aux().realpath, PermissionsExt::from_mode(stat.mode)
+            ));
+        }
+        if valid.contains(setattr::UID) {
+            try!(chown(&fid.aux().realpath, Some(stat.uid), None));
+        }
+        if valid.contains(setattr::GID) {
+            try!(chown(&fid.aux().realpath, None, Some(stat.gid)));
+        }
         if valid.contains(setattr::SIZE) {}
         if valid.contains(setattr::ATIME) {}
         if valid.contains(setattr::MTIME) {}
@@ -223,7 +232,6 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
 
     println!("[*] Ready to accept clients: {}", args[1]);
     try!(rs9p::srv_mt(Unpfs::new(mountpoint), &args[1]));
-    //try!(rs9p::srv(Unpfs::new(mountpoint), &args[1]));
 
     return Ok(0);
 }

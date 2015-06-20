@@ -159,7 +159,8 @@ pub use self::lstatus::LockStatus;
 ///
 /// QidType can be constructed from std::fs::FileType via From trait
 ///
-/// Protocol: 9P2000/9P2000.L
+/// # Protocol
+/// 9P2000/9P2000.L
 pub mod qt {
     use std::fs;
     bitflags! {
@@ -204,7 +205,8 @@ pub use self::qt::QidType;
 
 /// Bits in `mask` and `valid` of `Tgetattr` and `Rgetattr`.
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 pub mod getattr {
     bitflags! {
         flags GetattrMask: u64 {
@@ -238,7 +240,8 @@ pub use self::getattr::GetattrMask;
 /// If a time bit is set without the corresponding SET bit, the current
 /// system time on the server is used instead of the value sent in the request.
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 pub mod setattr {
     bitflags! {
         flags SetattrMask: u32 {
@@ -260,7 +263,8 @@ pub use self::setattr::SetattrMask;
 ///
 /// The server's unique identification for the file being accessed
 ///
-/// Protocol: 9P2000/9P2000.L
+/// # Protocol
+/// 9P2000/9P2000.L
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Qid {
@@ -274,7 +278,8 @@ pub struct Qid {
 
 /// Filesystem information corresponding to `struct statfs` of Linux.
 /// 
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Statfs {
@@ -300,7 +305,8 @@ pub struct Statfs {
 
 /// Time struct
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Time {
@@ -312,7 +318,8 @@ pub struct Time {
 ///
 /// Stat can be constructed from std::fs::Metadata via From trait
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Stat {
@@ -379,7 +386,8 @@ pub struct SetAttr {
 
 /// Directory entry used in `Rreaddir`
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirEntry {
     /// Qid for this directory
@@ -421,7 +429,8 @@ impl DirEntryData {
 
 /// Data type used in Rread and Twrite
 ///
-/// Protocol: 9P2000/9P2000.L
+/// # Protocol
+/// 9P2000/9P2000.L
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Data(Vec<u8>);
 
@@ -432,7 +441,8 @@ impl Data {
 
 /// Similar to Linux `struct flock`
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flock {
@@ -446,7 +456,8 @@ pub struct Flock {
 
 /// Getlock structure
 ///
-/// Protocol: 9P2000.L
+/// # Protocol
+/// 9P2000.L
 #[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Getlock {

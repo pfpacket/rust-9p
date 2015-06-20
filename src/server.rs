@@ -1,5 +1,8 @@
 
 //! Server side 9P library
+//!
+//! # Protocol
+//! 9P2000.L
 
 extern crate nix;
 extern crate libc;
@@ -26,7 +29,7 @@ macro_rules! io_error {
 }
 
 /// Represents a fid of clients holding associated `Filesystem::Fid`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Fid<T> {
     /// Raw client side fid
     pub fid: u32,
@@ -41,6 +44,9 @@ impl<T> Fid<T> {
     /// Unwrap and return a reference to the qid
     pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
     /// Unwrap and return a reference to the aux
+    ///
+    /// # Panics
+    /// Calling this method on an aux which is None will panic
     pub fn aux(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
 }
 
@@ -53,12 +59,13 @@ impl<T> Fid<T> {
 ///
 /// The default implementation, returning ENOSYS error, is provided to the all methods
 /// except Rversion.
-///
 /// The default implementation of Rversion returns a message accepting 9P2000.L.
 ///
-/// Protocol: 9P2000.L
+/// # NOTE
+/// Defined as `Srv` in 9p.h of Plan 9.
 ///
-/// NOTE: Defined as `Srv` in 9p.h of Plan 9.
+/// # Protocol
+/// 9P2000.L
 pub trait Filesystem {
     /// User defined fid type to be associated with a client's fid
     type Fid = ();
@@ -327,7 +334,7 @@ fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
 
 /// Start the 9P filesystem (fork child processes)
 ///
-/// This function invokes a new thread to handle its 9P messages
+/// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) = try!(parse_proto(addr).or(
@@ -348,9 +355,11 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
         match try!(nix::unistd::fork()) {
             nix::unistd::Fork::Parent(_) => {},
             nix::unistd::Fork::Child => {
-                println!("[!] ServerProcess={} starts", remote);
+                info!("ServerProcess={} starts", remote);
+
                 let result = try!(ServerInstance::new(filesystem, stream)).dispatch();
-                println!("[!] ServerProcess={} finished: {:?}", remote, result);
+
+                info!("ServerProcess={} finished: {:?}", remote, result);
                 process::exit(1);
             }
         }
@@ -359,7 +368,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 
 /// Start the 9P filesystem (multi threads)
 ///
-/// This function invokes a new thread to handle its 9P messages
+/// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) = try!(parse_proto(addr).or(
@@ -377,12 +386,12 @@ pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Re
         let (stream, remote) = try!(listener.accept());
         let fs = arc_fs.clone();
         let _ = thread::Builder::new().name(format!("{}", remote)).spawn(move || {
-            println!("[!] ServerThread={:?} started",
+            info!("ServerThread={:?} started",
                 thread::current().name().unwrap_or("NoInfo"));
 
             let result = try!(MtServerInstance::new(fs, stream)).dispatch();
 
-            println!("[!] ServerThread={:?} finished: {:?}",
+            info!("ServerThread={:?} finished: {:?}",
                 thread::current().name().unwrap_or("NoInfo"), result);
             result
         });

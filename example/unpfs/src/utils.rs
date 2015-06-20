@@ -41,15 +41,6 @@ fn test_pathconv1() {
     assert_eq!(Path::new("/test"), pathconv("/tmp/test", "/tmp").as_ref());
 }
 
-pub fn chmod<T: AsRef<Path>>(path: &T, mode: u32) -> rs9p::Result<()> {
-    unsafe {
-        let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
-        match libc::chmod(ptr as *const i8, mode) {
-            0 => Ok(()), _ => Err(rs9p::Error::No(errno!()))
-        }
-    }
-}
-
 pub fn chown<T: AsRef<Path>>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {
     unsafe {
         let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();

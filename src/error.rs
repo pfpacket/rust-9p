@@ -1,5 +1,5 @@
 
-//! Define 9P2000 error messages
+//! Define 9P error representations
 //!
 //! In 9P2000, errors are represented as strings.
 //! All imported from include/net/9p/error.c of Linux kernel
@@ -45,7 +45,7 @@ fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
 /// Protocol: 9P2000.L
 #[derive(Debug)]
 pub enum Error {
-    /// System error from an errno
+    /// System error containing an errno
     No(nix::errno::Errno),
     /// I/O error
     Io(io::Error)

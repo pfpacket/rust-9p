@@ -51,9 +51,8 @@ fn read_exact<R: Read>(r: &mut R, size: usize) -> Result<Vec<u8>> {
 
 
 /// Trait representing a type which can be serialized into binary
-///
-/// Returns the number of bytes encoded
 pub trait Encodable {
+    /// Encode self to w and returns the number of bytes encoded
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize>;
 }
 
