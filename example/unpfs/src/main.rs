@@ -97,7 +97,7 @@ impl rs9p::Filesystem for Unpfs {
 
     fn rreadlink(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
         let link = try!(fs::read_link(&fid.aux().realpath));
-        let target = pathconv(&link, &self.realroot);
+        let target = rm_head_path(&link, &self.realroot);
         Ok(Fcall::Rreadlink { target: target.to_str().unwrap().to_owned() })
     }
 

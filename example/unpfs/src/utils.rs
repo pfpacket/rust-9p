@@ -23,22 +23,15 @@ macro_rules! errno {
     () => { nix::errno::from_i32(nix::errno::errno()) }
 }
 
-pub fn pathconv<P1: AsRef<Path> + ?Sized, P2: AsRef<Path> + ?Sized>(path: &P1, root: &P2) -> PathBuf {
-    let p = path.as_ref().to_str().unwrap();
-    let r = root.as_ref().to_str().unwrap();
-    if path.as_ref().is_absolute() && p.len() >= r.len() {
-        Path::new(if p.len() == r.len() { "/" } else { &p[r.len()..] })
+pub fn rm_head_path<P1: AsRef<Path> + ?Sized, P2: AsRef<Path> + ?Sized>(path: &P1, head: &P2) -> PathBuf {
+    let p = path.as_ref();
+    if p.is_absolute() && p.starts_with(head.as_ref()) {
+        p.components().skip(2)
+            .map(|c| Path::new(c.as_os_str()))
+            .fold(PathBuf::from("/"), |acc, c| acc.join(c))
     } else {
-        path.as_ref()
-    }.to_path_buf()
-}
-
-#[test]
-fn test_pathconv1() {
-    assert_eq!(Path::new("/"), pathconv("/tmp", "/tmp").as_ref());
-    assert_eq!(Path::new("/"), pathconv("/tmp/", "/tmp").as_ref());
-    assert_eq!(Path::new("/tmp"), pathconv("/tmp", "/tmp/").as_ref());
-    assert_eq!(Path::new("/test"), pathconv("/tmp/test", "/tmp").as_ref());
+        p.to_path_buf()
+    }
 }
 
 pub fn chown<T: AsRef<Path>>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {
