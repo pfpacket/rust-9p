@@ -1,7 +1,8 @@
 
 //! Define data types and constants used in 9P protocol
 //!
-//! Supported protocol: 9P2000.L
+//! # Supported protocol
+//! 9P2000.L
 
 extern crate num;
 use std::mem::{size_of, size_of_val};

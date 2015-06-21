@@ -78,9 +78,8 @@ impl rs9p::Filesystem for Unpfs {
 
     fn rsetattr(&mut self, fid: &mut Fid<Self::Fid>, valid: SetattrMask, stat: &SetAttr) -> Result<Fcall> {
         if valid.contains(setattr::MODE) {
-            try!(fs::set_permissions(
-                &fid.aux().realpath, PermissionsExt::from_mode(stat.mode)
-            ));
+            let perm = PermissionsExt::from_mode(stat.mode);
+            try!(fs::set_permissions(&fid.aux().realpath, perm));
         }
         if valid.contains(setattr::UID) {
             try!(chown(&fid.aux().realpath, Some(stat.uid), None));
@@ -88,7 +87,9 @@ impl rs9p::Filesystem for Unpfs {
         if valid.contains(setattr::GID) {
             try!(chown(&fid.aux().realpath, None, Some(stat.gid)));
         }
-        if valid.contains(setattr::SIZE) {}
+        if valid.contains(setattr::SIZE) {
+            let _ = try!(fs::File::open(&fid.aux().realpath)).set_len(stat.size);
+        }
         if valid.contains(setattr::ATIME) {}
         if valid.contains(setattr::MTIME) {}
         if valid.contains(setattr::CTIME) {}
