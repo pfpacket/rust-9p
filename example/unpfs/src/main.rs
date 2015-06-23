@@ -22,7 +22,7 @@ struct UnpfsFid {
 }
 
 impl UnpfsFid {
-    fn new<P: ?Sized>(path: &P) -> UnpfsFid where P: AsRef<OsStr> {
+    fn new<P: AsRef<OsStr> + ?Sized>(path: &P) -> UnpfsFid {
         UnpfsFid {
             realpath: Path::new(path).to_path_buf(),
             file: None,
@@ -71,7 +71,7 @@ impl rs9p::Filesystem for Unpfs {
         let attr = try!(fs::symlink_metadata(&fid.aux().realpath));
         Ok(Fcall::Rgetattr {
             valid: req_mask,
-            qid: try!(get_qid(&fid.aux().realpath)),
+            qid: qid_from_attr(&attr),
             stat: From::from(attr)
         })
     }
@@ -140,10 +140,7 @@ impl rs9p::Filesystem for Unpfs {
             fid.aux().file = unsafe { Some(fs::File::from_raw_fd(fd)) };
         }
 
-        Ok(Fcall::Rlopen {
-            qid: qid,
-            iounit: 8192 - rs9p::IOHDRSZ
-        })
+        Ok(Fcall::Rlopen { qid: qid, iounit: 0 })
     }
 
     fn rlcreate(&mut self, fid: &mut Fid<Self::Fid>, name: &str, flags: u32, mode: u32, _gid: u32) -> Result<Fcall> {
@@ -153,19 +150,16 @@ impl rs9p::Filesystem for Unpfs {
         let fd = try!(nix::fcntl::open(&path, oflags, omode));
 
         fid.aux = Some(UnpfsFid::new(&path));
-        fid.aux().file = unsafe { Some(fs::File::from_raw_fd(fd)) };
+        fid.aux().file = Some(unsafe { fs::File::from_raw_fd(fd) });
 
-        Ok(Fcall::Rlcreate {
-            qid: try!(get_qid(&path)),
-            iounit: 8192 - rs9p::IOHDRSZ
-        })
+        Ok(Fcall::Rlcreate { qid: try!(get_qid(&path)), iounit: 0 })
     }
 
     fn rread(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
         let file = fid.aux().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
 
-        let mut buf = vec![0u8; count as usize];
+        let mut buf = create_buffer(count as usize);
         let bytes = try!(file.read(&mut buf[..]));
         buf.truncate(bytes);
 
@@ -175,10 +169,7 @@ impl rs9p::Filesystem for Unpfs {
     fn rwrite(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, data: &Data) -> Result<Fcall> {
         let file = fid.aux().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
-
-        let bytes = try!(file.write(data.data()));
-
-        Ok(Fcall::Rwrite { count: bytes as u32 })
+        Ok(Fcall::Rwrite { count: try!(file.write(data.data())) as u32 })
     }
 
     fn rmkdir(&mut self, dfid: &mut Fid<Self::Fid>, name: &str, _mode: u32, _gid: u32) -> Result<Fcall> {

@@ -129,11 +129,15 @@ pub trait Filesystem {
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
     fn rremove(&mut self, _: &mut Fid<Self::Fid>)
         -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
-    fn rversion(&mut self, _msize: u32, _version: &str) -> Result<Fcall> {
-        Ok(Fcall::Rversion {
-            msize: 8192,
-            version: "9P2000.L".to_owned()
-        })
+    fn rversion(&mut self, msize: u32, version: &str) -> Result<Fcall> {
+        if version == P92000L {
+            Ok(Fcall::Rversion {
+                msize: msize,
+                version: P92000L.to_owned()
+            })
+        } else {
+            Err(error::Error::No(EPROTONOSUPPORT))
+        }
     }
 }
 
