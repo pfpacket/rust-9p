@@ -5,7 +5,6 @@ extern crate rs9p;
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::os::unix::io::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 
@@ -45,14 +44,6 @@ pub fn chown<T: AsRef<Path>>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs
     unsafe {
         let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
         match libc::chown(ptr as *const i8, uid.unwrap_or(u32::max_value()), gid.unwrap_or(u32::max_value())) {
-            0 => Ok(()), _ => Err(rs9p::Error::No(errno!()))
-        }
-    }
-}
-
-pub fn fsync<T: AsRawFd>(fd: &T) -> rs9p::Result<()> {
-    unsafe {
-        match libc::fsync(fd.as_raw_fd()) {
             0 => Ok(()), _ => Err(rs9p::Error::No(errno!()))
         }
     }

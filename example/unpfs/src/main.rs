@@ -197,7 +197,7 @@ impl rs9p::Filesystem for Unpfs {
     }
 
     fn rfsync(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        try!(fsync(fid.aux().file.as_mut().unwrap()));
+        try!(fid.aux().file.as_mut().unwrap().sync_all());
         Ok(Fcall::Rfsync)
     }
 
