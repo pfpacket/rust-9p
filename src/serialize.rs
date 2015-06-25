@@ -6,9 +6,10 @@ extern crate byteorder;
 
 use fcall::*;
 use std::mem;
+use std::ops::{Shl, Shr};
+use std::io::{self, Read, Write, Cursor};
 use self::num::FromPrimitive;
-use std::io::{self, Read, Write, Cursor, BufWriter};
-use self::byteorder::{Result, LittleEndian, ReadBytesExt, WriteBytesExt};
+use self::byteorder::{Error, Result, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 macro_rules! io_error {
     ($kind:ident, $msg:expr) => {
@@ -34,21 +35,129 @@ fn create_buffer(size: usize) -> Vec<u8> {
     buffer
 }
 
-fn read_exact<R: Read>(r: &mut R, size: usize) -> Result<Vec<u8>> {
-    let mut pos = 0;
+fn read_exact<R: Read + ?Sized>(r: &mut R, size: usize) -> Result<Vec<u8>> {
     let mut buf = create_buffer(size);
-    loop {
-        let bytes_read = try!(r.read(&mut buf[pos..]));
-        pos += bytes_read;
-        if pos >= size { break; }
-        if bytes_read == 0 {
-            return io_error!(Other, "Cannot read specified amount of data");
-        }
-    }
-    assert_eq!(pos, size);
-    Ok(buf)
+    read_full(r, &mut buf[..]).and(Ok(buf))
 }
 
+fn read_full<R: Read + ?Sized>(r: &mut R, buf: &mut [u8]) -> Result<()> {
+    let mut nread = 0usize;
+    while nread < buf.len() {
+        match r.read(&mut buf[nread..]) {
+            Ok(0) => return Err(Error::UnexpectedEOF),
+            Ok(n) => nread += n,
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {},
+            Err(e) => return Err(From::from(e))
+        }
+    }
+    Ok(())
+}
+
+/// A serializing specific result to overload operators on Result
+pub enum SResult<T> {
+    Ok(T), Err(Error)
+}
+
+macro_rules! enc_result {
+    ($res:expr) => {
+        match $res {
+            Ok(v) => v,
+            Err(e) => return ::serialize::SResult::Err(From::from(e)),
+        }
+    }
+}
+
+/// A macro to try! `SResult`
+#[macro_export]
+macro_rules! stry {
+    ($eres:expr) => {
+        match $eres {
+            ::serialize::SResult::Ok(enc) => enc,
+            ::serialize::SResult::Err(e) => return Err(From::from(e)),
+        }
+    }
+}
+
+/// A wrapper class of WriteBytesExt to provide operator overloads
+/// for serializing
+///
+/// Operator '<<' serializes the right hand side argument into
+/// the left hand side encoder
+#[derive(Clone, Debug)]
+pub struct Encoder<W> {
+    writer: W,
+    bytes: usize
+}
+
+impl<W: WriteBytesExt> Encoder<W> {
+    pub fn new(writer: W) -> Encoder<W> { Encoder { writer: writer, bytes: 0 } }
+    /// Return total bytes written
+    pub fn bytes_written(&self) -> usize { self.bytes }
+    /// Encode data, equivalent to: decoder << data
+    pub fn encode<T: Encodable,>(&mut self, data: &T) -> Result<usize> {
+        let bytes = try!(data.encode(&mut self.writer));
+        self.bytes += bytes;
+        Ok(bytes)
+    }
+    /// Get inner writer
+    pub fn into_inner(self) -> W { self.writer }
+}
+
+impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
+    type Output = SResult<Encoder<W>>;
+    fn shl(mut self, rhs: &'a T) -> Self::Output {
+        enc_result!(self.encode(rhs));
+        SResult::Ok(self)
+    }
+}
+
+impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for SResult<Encoder<W>> {
+    type Output = Self;
+    fn shl(self, rhs: &'a T) -> Self::Output {
+        let mut encoder = match self {
+            SResult::Ok(enc) => enc,
+            SResult::Err(e) => return SResult::Err(From::from(e)),
+        };
+        enc_result!(encoder.encode(rhs));
+        SResult::Ok(encoder)
+    }
+}
+
+/// A wrapper class of ReadBytesExt to provide operator overloads
+/// for deserializing
+#[derive(Clone, Debug)]
+pub struct Decoder<R> {
+    reader: R,
+}
+
+impl<R: ReadBytesExt> Decoder<R> {
+    pub fn new(reader: R) -> Decoder<R> { Decoder { reader: reader } }
+    pub fn decode<T: Decodable,>(&mut self) -> Result<T> {
+        Decodable::decode(&mut self.reader)
+    }
+    /// Get inner reader
+    pub fn into_inner(self) -> R { self.reader }
+}
+
+impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
+    type Output = SResult<Decoder<R>>;
+    fn shr(mut self, rhs: &'a mut T) -> Self::Output {
+        *rhs = enc_result!(self.decode());
+        SResult::Ok(self)
+    }
+}
+
+impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for SResult<Decoder<R>> {
+    type Output = Self;
+    fn shr(self, rhs: &'a mut T) -> Self::Output {
+        let mut decoder = match self {
+            SResult::Ok(enc) => enc,
+            SResult::Err(e) => return SResult::Err(From::from(e)),
+        };
+        *rhs = enc_result!(decoder.decode());
+        SResult::Ok(decoder)
+    }
+}
 
 /// Trait representing a type which can be serialized into binary
 pub trait Encodable {
@@ -82,7 +191,7 @@ impl Encodable for u64 {
 
 impl Encodable for String {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = try!{ (self.len() as u16).encode(w) };
+        let mut bytes = try!((self.len() as u16).encode(w));
         bytes += try!(w.write_all(self.as_bytes()).and(Ok(self.len())));
         Ok(bytes)
     }
@@ -90,89 +199,63 @@ impl Encodable for String {
 
 impl Encodable for Qid {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.typ.bits().encode(w));
-        bytes += try!(self.version.encode(w));
-        bytes += try!(self.path.encode(w));
-        Ok(bytes)
+        Ok(stry!(
+            Encoder::new(w) << &self.typ.bits() << &self.version << &self.path
+        ).bytes_written())
     }
 }
 
 impl Encodable for Statfs {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.typ.encode(w));
-        bytes += try!(self.bsize.encode(w));
-        bytes += try!(self.blocks.encode(w));
-        bytes += try!(self.bfree.encode(w));
-        bytes += try!(self.bavail.encode(w));
-        bytes += try!(self.files.encode(w));
-        bytes += try!(self.ffree.encode(w));
-        bytes += try!(self.fsid.encode(w));
-        bytes += try!(self.namelen.encode(w));
-        Ok(bytes)
+        Ok(stry!(Encoder::new(w)
+            << &self.typ << &self.bsize << &self.blocks
+            << &self.bfree << &self.bavail << &self.files
+            << &self.ffree << &self.fsid << &self.namelen
+        ).bytes_written())
     }
 }
 
 impl Encodable for Time {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.sec.encode(w));
-        bytes += try!(self.nsec.encode(w));
-        Ok(bytes)
+        Ok(stry!(
+            Encoder::new(w) << &self.sec << &self.nsec
+        ).bytes_written())
     }
 }
 
 impl Encodable for Stat {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.mode.encode(w));
-        bytes += try!(self.uid.encode(w));
-        bytes += try!(self.gid.encode(w));
-        bytes += try!(self.nlink.encode(w));
-        bytes += try!(self.rdev.encode(w));
-        bytes += try!(self.size.encode(w));
-        bytes += try!(self.blksize.encode(w));
-        bytes += try!(self.blocks.encode(w));
-        bytes += try!(self.atime.encode(w));
-        bytes += try!(self.mtime.encode(w));
-        bytes += try!(self.ctime.encode(w));
-        Ok(bytes)
+        Ok(stry!(Encoder::new(w)
+            << &self.mode << &self.uid << &self.gid
+            << &self.nlink << &self.rdev << &self.size
+            << &self.blksize << &self.blocks << &self.atime
+            << &self.mtime << &self.ctime
+        ).bytes_written())
     }
 }
 
 impl Encodable for SetAttr {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.mode.encode(w));
-        bytes += try!(self.uid.encode(w));
-        bytes += try!(self.gid.encode(w));
-        bytes += try!(self.size.encode(w));
-        bytes += try!(self.atime.encode(w));
-        bytes += try!(self.mtime.encode(w));
-        Ok(bytes)
+        Ok(stry!(Encoder::new(w)
+            << &self.mode << &self.uid << &self.gid
+            << &self.size << &self.atime << &self.mtime
+        ).bytes_written())
     }
 }
 
 impl Encodable for DirEntry {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.qid.encode(w));
-        bytes += try!(self.offset.encode(w));
-        bytes += try!(self.typ.encode(w));
-        bytes += try!(self.name.encode(w));
-        Ok(bytes)
+        Ok(stry!(Encoder::new(w)
+            << &self.qid << &self.offset << &self.typ << &self.name
+        ).bytes_written())
     }
 }
 
 impl Encodable for DirEntryData {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.size().encode(w));
-        for entry in self.data() {
-            bytes += try!(entry.encode(w));
-        }
-        Ok(bytes)
+        Ok(stry!(self.data().iter()
+            .fold(Encoder::new(w) << &self.size(), |acc, e| acc << e)
+        ).bytes_written())
     }
 }
 
@@ -187,119 +270,106 @@ impl Encodable for Data {
 
 impl Encodable for Flock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.typ.bits().encode(w));
-        bytes += try!(self.flags.bits().encode(w));
-        bytes += try!(self.start.encode(w));
-        bytes += try!(self.length.encode(w));
-        bytes += try!(self.proc_id.encode(w));
-        bytes += try!(self.client_id.encode(w));
-        Ok(bytes)
+        Ok(stry!(Encoder::new(w)
+            << &self.typ.bits() << &self.flags.bits() << &self.start
+            << &self.length << &self.proc_id << &self.client_id
+        ).bytes_written())
     }
 }
 
 impl Encodable for Getlock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = 0;
-        bytes += try!(self.typ.bits().encode(w));
-        bytes += try!(self.start.encode(w));
-        bytes += try!(self.length.encode(w));
-        bytes += try!(self.proc_id.encode(w));
-        bytes += try!(self.client_id.encode(w));
-        Ok(bytes)
+        Ok(stry!(Encoder::new(w)
+            << &self.typ.bits() << &self.start << &self.length
+            << &self.proc_id << &self.client_id
+        ).bytes_written())
     }
 }
 
 impl<T: Encodable> Encodable for Vec<T> {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = try!((self.len() as u16).encode(w));
-        for ref s in self {
-            bytes += try!(s.encode(w))
-        }
-        Ok(bytes)
+        Ok(stry!(self.iter()
+            .fold(Encoder::new(w) << &(self.len() as u16), |acc, s| acc << s)
+        ).bytes_written())
     }
 }
 
 impl Encodable for Msg {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        macro_rules! encode {
-            ( $encoder:expr, $( $x:expr ),* ) => {
-                $( let _ = try!($x.encode(&mut $encoder)); )*
-            }
-        }
-
-        let mut buf: Vec<u8> = Vec::new();
-        encode!(buf, &(self.typ as u8));
-        encode!(buf, &self.tag);
-        match self.body {
+        let buf = Encoder::new(Vec::with_capacity(8196)) << &(self.typ as u8) << &self.tag;
+        let buf = stry!(match self.body {
             // 9P2000.L
-            Fcall::Rlerror { ref ecode }                                                    => { encode!(buf, ecode); },
-            Fcall::Tstatfs { ref fid }                                                      => { encode!(buf, fid); },
-            Fcall::Rstatfs { ref statfs }                                                   => { encode!(buf, statfs); },
-            Fcall::Tlopen { ref fid, ref flags }                                            => { encode!(buf, fid, flags); },
-            Fcall::Rlopen { ref qid, ref iounit }                                           => { encode!(buf, qid, iounit); },
-            Fcall::Tlcreate { ref fid, ref name, ref flags, ref mode, ref gid }             => { encode!(buf, fid, name, flags, mode, gid); },
-            Fcall::Rlcreate { ref qid, ref iounit }                                         => { encode!(buf, qid, iounit); },
-            Fcall::Tsymlink { ref fid, ref name, ref symtgt, ref gid }                      => { encode!(buf, fid, name, symtgt, gid); },
-            Fcall::Rsymlink { ref qid }                                                     => { encode!(buf, qid); },
-            Fcall::Tmknod { ref dfid, ref name, ref mode, ref major, ref minor, ref gid }   => { encode!(buf, dfid, name, mode, major, minor, gid); },
-            Fcall::Rmknod { ref qid }                                                       => { encode!(buf, qid); },
-            Fcall::Trename { ref fid, ref dfid, ref name }                                  => { encode!(buf, fid, dfid, name); },
-            Fcall::Rrename                                                                  => {},
-            Fcall::Treadlink { ref fid }                                                    => { encode!(buf, fid); },
-            Fcall::Rreadlink { ref target }                                                 => { encode!(buf, target); },
-            Fcall::Tgetattr { ref fid, ref req_mask }                                       => { encode!(buf, fid, req_mask.bits()); },
-            Fcall::Rgetattr { ref valid, ref qid, ref stat }                                => { encode!(buf, valid.bits(), qid, stat, 0u64, 0u64, 0u64, 0u64); },
-            Fcall::Tsetattr { ref fid, ref valid, ref stat }                                => { encode!(buf, fid, valid.bits(), stat); },
-            Fcall::Rsetattr                                                                 => {},
-            Fcall::Txattrwalk { ref fid, ref newfid, ref name }                             => { encode!(buf, fid, newfid, name); },
-            Fcall::Rxattrwalk { ref size }                                                  => { encode!(buf, size); },
-            Fcall::Txattrcreate { ref fid, ref name, ref attr_size, ref flags }             => { encode!(buf, fid, name, attr_size, flags); },
-            Fcall::Rxattrcreate                                                             => {},
-            Fcall::Treaddir { ref fid, ref offset, ref count }                              => { encode!(buf, fid, offset, count); },
-            Fcall::Rreaddir { ref data }                                                    => { encode!(buf, data); },
-            Fcall::Tfsync { ref fid }                                                       => { encode!(buf, fid); },
-            Fcall::Rfsync                                                                   => {},
-            Fcall::Tlock { ref fid, ref flock }                                             => { encode!(buf, fid, flock ); },
-            Fcall::Rlock { ref status }                                                     => { encode!(buf, status.bits()); },
-            Fcall::Tgetlock { ref fid, ref flock }                                          => { encode!(buf, fid, flock); },
-            Fcall::Rgetlock { ref flock }                                                   => { encode!(buf, flock); },
-            Fcall::Tlink { ref dfid, ref fid, ref name }                                    => { encode!(buf, dfid, fid, name); },
-            Fcall::Rlink                                                                    => {},
-            Fcall::Tmkdir { ref dfid, ref name, ref mode, ref gid }                         => { encode!(buf, dfid, name, mode, gid); },
-            Fcall::Rmkdir { ref qid }                                                       => { encode!(buf, qid); },
-            Fcall::Trenameat { ref olddirfid, ref oldname, ref newdirfid, ref newname }     => { encode!(buf, olddirfid, oldname, newdirfid, newname); },
-            Fcall::Rrenameat                                                                => {},
-            Fcall::Tunlinkat { ref dirfd, ref name, ref flags }                             => { encode!(buf, dirfd, name, flags); },
-            Fcall::Runlinkat                                                                => {},
+            Fcall::Rlerror { ref ecode }                                                    => { buf << ecode },
+            Fcall::Tstatfs { ref fid }                                                      => { buf << fid },
+            Fcall::Rstatfs { ref statfs }                                                   => { buf << statfs },
+            Fcall::Tlopen { ref fid, ref flags }                                            => { buf << fid << flags },
+            Fcall::Rlopen { ref qid, ref iounit }                                           => { buf << qid << iounit },
+            Fcall::Tlcreate { ref fid, ref name, ref flags, ref mode, ref gid }             => { buf << fid << name << flags << mode << gid },
+            Fcall::Rlcreate { ref qid, ref iounit }                                         => { buf << qid << iounit },
+            Fcall::Tsymlink { ref fid, ref name, ref symtgt, ref gid }                      => { buf << fid << name << symtgt << gid },
+            Fcall::Rsymlink { ref qid }                                                     => { buf << qid },
+            Fcall::Tmknod { ref dfid, ref name, ref mode, ref major, ref minor, ref gid }   => { buf << dfid << name << mode << major << minor << gid },
+            Fcall::Rmknod { ref qid }                                                       => { buf << qid },
+            Fcall::Trename { ref fid, ref dfid, ref name }                                  => { buf << fid << dfid << name },
+            Fcall::Rrename                                                                  => { buf },
+            Fcall::Treadlink { ref fid }                                                    => { buf << fid },
+            Fcall::Rreadlink { ref target }                                                 => { buf << target },
+            Fcall::Tgetattr { ref fid, ref req_mask }                                       => { buf << fid << &req_mask.bits() },
+            Fcall::Rgetattr { ref valid, ref qid, ref stat }                                => { buf << &valid.bits() << qid << stat << &0u64 << &0u64 << &0u64 << &0u64 },
+            Fcall::Tsetattr { ref fid, ref valid, ref stat }                                => { buf << fid << &valid.bits() << stat },
+            Fcall::Rsetattr                                                                 => { buf },
+            Fcall::Txattrwalk { ref fid, ref newfid, ref name }                             => { buf << fid << newfid << name },
+            Fcall::Rxattrwalk { ref size }                                                  => { buf << size },
+            Fcall::Txattrcreate { ref fid, ref name, ref attr_size, ref flags }             => { buf << fid << name << attr_size << flags },
+            Fcall::Rxattrcreate                                                             => { buf },
+            Fcall::Treaddir { ref fid, ref offset, ref count }                              => { buf << fid << offset << count },
+            Fcall::Rreaddir { ref data }                                                    => { buf << data },
+            Fcall::Tfsync { ref fid }                                                       => { buf << fid },
+            Fcall::Rfsync                                                                   => { buf },
+            Fcall::Tlock { ref fid, ref flock }                                             => { buf << fid << flock  },
+            Fcall::Rlock { ref status }                                                     => { buf << &status.bits() },
+            Fcall::Tgetlock { ref fid, ref flock }                                          => { buf << fid << flock },
+            Fcall::Rgetlock { ref flock }                                                   => { buf << flock },
+            Fcall::Tlink { ref dfid, ref fid, ref name }                                    => { buf << dfid << fid << name },
+            Fcall::Rlink                                                                    => { buf },
+            Fcall::Tmkdir { ref dfid, ref name, ref mode, ref gid }                         => { buf << dfid << name << mode << gid },
+            Fcall::Rmkdir { ref qid }                                                       => { buf << qid },
+            Fcall::Trenameat { ref olddirfid, ref oldname, ref newdirfid, ref newname }     => { buf << olddirfid << oldname << newdirfid << newname },
+            Fcall::Rrenameat                                                                => { buf },
+            Fcall::Tunlinkat { ref dirfd, ref name, ref flags }                             => { buf << dirfd << name << flags },
+            Fcall::Runlinkat                                                                => { buf },
 
             // 9P2000.u
-            Fcall::Tauth { ref afid, ref uname, ref aname, ref n_uname }                    => { encode!(buf, afid, uname, aname, n_uname); },
-            Fcall::Rauth { ref aqid }                                                       => { encode!(buf, aqid); },
-            Fcall::Tattach { ref fid, ref afid, ref uname, ref aname, ref n_uname }         => { encode!(buf, fid, afid, uname, aname, n_uname); },
-            Fcall::Rattach { ref qid }                                                      => { encode!(buf, qid); },
+            Fcall::Tauth { ref afid, ref uname, ref aname, ref n_uname }                    => { buf << afid << uname << aname << n_uname },
+            Fcall::Rauth { ref aqid }                                                       => { buf << aqid },
+            Fcall::Tattach { ref fid, ref afid, ref uname, ref aname, ref n_uname }         => { buf << fid << afid << uname << aname << n_uname },
+            Fcall::Rattach { ref qid }                                                      => { buf << qid },
 
             // 9P2000
-            Fcall::Tversion { ref msize, ref version }                                      => { encode!(buf, msize, version); },
-            Fcall::Rversion { ref msize, ref version }                                      => { encode!(buf, msize, version); },
-            Fcall::Tflush { ref oldtag }                                                    => { encode!(buf, oldtag); },
-            Fcall::Rflush                                                                   => {},
-            Fcall::Twalk { ref fid, ref newfid, ref wnames }                                => { encode!(buf, fid, newfid, wnames); },
-            Fcall::Rwalk { ref wqids }                                                      => { encode!(buf, wqids); },
-            Fcall::Tread { ref fid, ref offset, ref count }                                 => { encode!(buf, fid, offset, count); },
-            Fcall::Rread { ref data }                                                       => { encode!(buf, data); },
-            Fcall::Twrite { ref fid, ref offset, ref data }                                 => { encode!(buf, fid, offset, data); },
-            Fcall::Rwrite { ref count }                                                     => { encode!(buf, count); },
-            Fcall::Tclunk { ref fid }                                                       => { encode!(buf, fid); },
-            Fcall::Rclunk                                                                   => {},
-            Fcall::Tremove { ref fid }                                                      => { encode!(buf, fid); },
-            Fcall::Rremove                                                                  => {},
-        };
+            Fcall::Tversion { ref msize, ref version }                                      => { buf << msize << version },
+            Fcall::Rversion { ref msize, ref version }                                      => { buf << msize << version },
+            Fcall::Tflush { ref oldtag }                                                    => { buf << oldtag },
+            Fcall::Rflush                                                                   => { buf },
+            Fcall::Twalk { ref fid, ref newfid, ref wnames }                                => { buf << fid << newfid << wnames },
+            Fcall::Rwalk { ref wqids }                                                      => { buf << wqids },
+            Fcall::Tread { ref fid, ref offset, ref count }                                 => { buf << fid << offset << count },
+            Fcall::Rread { ref data }                                                       => { buf << data },
+            Fcall::Twrite { ref fid, ref offset, ref data }                                 => { buf << fid << offset << data },
+            Fcall::Rwrite { ref count }                                                     => { buf << count },
+            Fcall::Tclunk { ref fid }                                                       => { buf << fid },
+            Fcall::Rclunk                                                                   => { buf },
+            Fcall::Tremove { ref fid }                                                      => { buf << fid },
+            Fcall::Rremove                                                                  => { buf },
+        });
 
-        let size = mem::size_of::<u32>() + buf.len();
-        let mut stream = BufWriter::new(w);
-        try!(stream.write_u32::<LittleEndian>(size as u32));
-        try!(stream.write_all(&buf));
+        let mut raw_buf = buf.into_inner();
+        let size = mem::size_of::<u32>() + raw_buf.len();
+
+        let mut size_buf = Vec::with_capacity(4);
+        try!((size as u32).encode(&mut size_buf));
+        for v in size_buf.iter().rev() { raw_buf.insert(0, *v); }
+
+        try!(w.write_all(&raw_buf));
         Ok(size)
     }
 }
@@ -558,46 +628,6 @@ impl Decodable for Msg {
     }
 }
 
-/// 9P message encoder
-///
-/// Helper class to serialize various data types in 9P messages into binary
-#[derive(Clone, Debug)]
-pub struct MsgEncoder {
-    data: Vec<u8>
-}
-
-impl MsgEncoder {
-    pub fn new() -> MsgEncoder {
-        MsgEncoder { data: Vec::new() }
-    }
-
-    pub fn get_ref(&self) -> &[u8] {
-        &self.data[..]
-    }
-
-    pub fn encode<T: Encodable,>(&mut self, data: &T) -> Result<usize> {
-        data.encode(&mut self.data)
-    }
-}
-
-/// 9P message decoder
-///
-/// Helper class to deserialize various data types in 9P messages from binary
-#[derive(Clone, Debug)]
-pub struct MsgDecoder {
-    data: Cursor<Vec<u8>>
-}
-
-impl MsgDecoder {
-    pub fn new(data: Vec<u8>) -> MsgDecoder {
-        MsgDecoder { data: Cursor::new(data) }
-    }
-
-    pub fn decode<T: Decodable>(&mut self) -> Result<T> {
-        Decodable::decode(&mut self.data)
-    }
-}
-
 /// Helper function to read a 9P message from a byte-oriented stream
 pub fn read_msg<R: ReadBytesExt>(r: &mut R) -> Result<Msg> {
     Decodable::decode(r)
@@ -612,20 +642,20 @@ pub fn write_msg<W: WriteBytesExt>(w: &mut W, msg: &Msg) -> Result<usize> {
 #[test]
 fn encoder_test1() {
     let expected: Vec<u8> = (0..10).collect();
-    let mut encoder = MsgEncoder::new();
+    let mut encoder = Vec::new();
     for i in 0..10 {
-        encoder.encode(&(i as u8)).unwrap();
+        (&(i as u8)).encode(&mut encoder).unwrap();
     }
-    assert_eq!(expected, encoder.get_ref());
+    assert_eq!(expected, encoder);
 }
 
 #[test]
 fn decoder_test1() {
     let expected: Vec<u8> = (0..10).collect();
-    let mut decoder = MsgDecoder::new(expected.clone());
+    let mut decoder = Cursor::new(expected.clone());
     let mut actual: Vec<u8> = Vec::new();
     loop {
-        match decoder.decode() {
+        match Decodable::decode(&mut decoder) {
             Ok(i) => actual.push(i),
             Err(_) => break
         }

@@ -141,9 +141,7 @@ pub trait Filesystem {
     }
 }
 
-struct ServerInstance<Fs, RwExt>
-    where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
-{
+struct ServerInstance<Fs: Filesystem, RwExt> {
     fs: Fs,
     stream: RwExt,
     fids: HashMap<u32, Fid<Fs::Fid>>,
@@ -175,9 +173,7 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
     }
 }
 
-struct MtServerInstance<Fs, RwExt>
-    where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
-{
+struct MtServerInstance<Fs: Filesystem, RwExt> {
     fs: Arc<Mutex<Fs>>,
     stream: RwExt,
     fids: HashMap<u32, Fid<Fs::Fid>>,
