@@ -266,7 +266,6 @@ pub use self::setattr::SetattrMask;
 ///
 /// # Protocol
 /// 9P2000/9P2000.L
-#[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Qid {
     /// Specify whether the file is a directory, append-only file, etc.
@@ -281,7 +280,6 @@ pub struct Qid {
 /// 
 /// # Protocol
 /// 9P2000.L
-#[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Statfs {
     /// Type of file system
@@ -308,7 +306,6 @@ pub struct Statfs {
 ///
 /// # Protocol
 /// 9P2000.L
-#[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Time {
     pub sec: u64,
@@ -321,7 +318,6 @@ pub struct Time {
 ///
 /// # Protocol
 /// 9P2000.L
-#[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Stat {
     /// Protection
@@ -374,7 +370,6 @@ impl<'a> From<&'a fs::Metadata> for Stat {
 }
 
 /// Subset of Stat used for Tsetattr
-#[repr(C, packed)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SetAttr {
     pub mode: u32,
@@ -446,7 +441,6 @@ impl Data {
 ///
 /// # Protocol
 /// 9P2000.L
-#[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Flock {
     pub typ: LockType,
@@ -461,7 +455,6 @@ pub struct Flock {
 ///
 /// # Protocol
 /// 9P2000.L
-#[repr(C, packed)]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Getlock {
     pub typ: LockType,

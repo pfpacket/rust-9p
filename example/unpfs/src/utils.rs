@@ -4,10 +4,8 @@ extern crate libc;
 extern crate rs9p;
 
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::MetadataExt;
-
+use std::path::Path;
+use std::os::unix::prelude::*;
 use rs9p::fcall::*;
 
 #[macro_export]
@@ -26,18 +24,6 @@ pub fn create_buffer(size: usize) -> Vec<u8> {
     let mut buffer = Vec::with_capacity(size);
     unsafe { buffer.set_len(size); }
     buffer
-}
-
-pub fn rm_head_path<P1: ?Sized, P2: ?Sized>(path: &P1, head: &P2) -> PathBuf
-    where P1: AsRef<Path>, P2: AsRef<Path>
-{
-    let p = path.as_ref();
-    if p.is_absolute() && p.starts_with(head.as_ref()) {
-        p.components().skip(2)
-            .fold(PathBuf::from("/"), |acc, c| acc.join(c.as_ref()))
-    } else {
-        p.to_path_buf()
-    }
 }
 
 pub fn chown<T: AsRef<Path> + ?Sized>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {

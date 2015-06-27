@@ -6,8 +6,7 @@ use std::fs;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::io::{self, Seek, SeekFrom, Read, Write};
-use std::os::unix::io::FromRawFd;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::prelude::*;
 use rs9p::*;
 
 #[macro_use]
@@ -98,8 +97,7 @@ impl rs9p::Filesystem for Unpfs {
 
     fn rreadlink(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
         let link = try!(fs::read_link(&fid.aux().realpath));
-        let target = rm_head_path(&link, &self.realroot);
-        Ok(Fcall::Rreadlink { target: target.to_string_lossy().into_owned() })
+        Ok(Fcall::Rreadlink { target: link.to_string_lossy().into_owned() })
     }
 
     fn rreaddir(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
