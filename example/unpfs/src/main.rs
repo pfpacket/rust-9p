@@ -99,7 +99,7 @@ impl rs9p::Filesystem for Unpfs {
     fn rreadlink(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
         let link = try!(fs::read_link(&fid.aux().realpath));
         let target = rm_head_path(&link, &self.realroot);
-        Ok(Fcall::Rreadlink { target: target.to_str().unwrap().to_owned() })
+        Ok(Fcall::Rreadlink { target: target.to_string_lossy().into_owned() })
     }
 
     fn rreaddir(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
@@ -108,8 +108,8 @@ impl rs9p::Filesystem for Unpfs {
 
         if offset == 0 {
             aux.readdir = Some(try!(fs::read_dir(&aux.realpath)).enumerate());
-            dirents.push(try!(get_dirent(&".", 0)));
-            dirents.push(try!(get_dirent(&"..", 1)));
+            dirents.push(try!(get_dirent_from(&".", 0)));
+            dirents.push(try!(get_dirent_from(&"..", 1)));
         }
 
         if let Some(ref dirent) = aux.peeked_dir {
@@ -118,8 +118,7 @@ impl rs9p::Filesystem for Unpfs {
         aux.peeked_dir = None;
 
         for (i, entry) in aux.readdir.as_mut().unwrap() {
-            let path = try!(entry.as_ref()).path();
-            let dirent = try!(get_dirent(&path, 2 + i as u64));
+            let dirent = try!(get_dirent(&try!(entry), 2 + i as u64));
             if dirents.size() + dirent.size() > count {
                 aux.peeked_dir = Some(dirent);
                 break;
@@ -187,12 +186,10 @@ impl rs9p::Filesystem for Unpfs {
 
     fn runlinkat(&mut self, dirfid: &mut Fid<Self::Fid>, name: &str, _flags: u32) -> Result<Fcall> {
         let path = dirfid.aux().realpath.join(name);
-        let attr = try!(fs::symlink_metadata(&path));
-        if attr.is_dir() {
-            try!(fs::remove_dir(&path));
-        } else {
-            try!(fs::remove_file(&path));
-        }
+        match try!(fs::symlink_metadata(&path)) {
+            ref attr if attr.is_dir() => try!(fs::remove_dir(&path)),
+            _ => try!(fs::remove_file(&path)),
+        };
         Ok(Fcall::Runlinkat)
     }
 

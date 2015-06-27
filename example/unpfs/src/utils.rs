@@ -40,7 +40,7 @@ pub fn rm_head_path<P1: ?Sized, P2: ?Sized>(path: &P1, head: &P2) -> PathBuf
     }
 }
 
-pub fn chown<T: AsRef<Path>>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {
+pub fn chown<T: AsRef<Path> + ?Sized>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {
     unsafe {
         let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
         match libc::chown(ptr as *const i8, uid.unwrap_or(u32::max_value()), gid.unwrap_or(u32::max_value())) {
@@ -49,8 +49,8 @@ pub fn chown<T: AsRef<Path>>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs
     }
 }
 
-pub fn get_qid<T: AsRef<Path>>(path: &T) -> rs9p::Result<Qid> {
-    Ok(qid_from_attr( &try!(fs::metadata(path.as_ref())) ))
+pub fn get_qid<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<Qid> {
+    Ok(qid_from_attr( &try!(fs::symlink_metadata(path.as_ref())) ))
 }
 
 pub fn qid_from_attr(attr: &fs::Metadata) -> Qid {
@@ -61,13 +61,20 @@ pub fn qid_from_attr(attr: &fs::Metadata) -> Qid {
     }
 }
 
-pub fn get_dirent<T: AsRef<Path>>(path: &T, offset: u64) -> rs9p::Result<DirEntry> {
-    let p = path.as_ref();
-    let name = p.file_name().or(Some(p.as_os_str())).unwrap();
+pub fn get_dirent_from<P: AsRef<Path> + ?Sized>(p: &P, offset: u64) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
-        qid: try!(get_qid(&path)),
+        qid: try!(get_qid(p)),
         offset: offset,
         typ: 0,
-        name: name.to_str().unwrap().to_owned()
+        name: p.as_ref().to_string_lossy().into_owned()
+    })
+}
+
+pub fn get_dirent(entry: &fs::DirEntry, offset: u64) -> rs9p::Result<DirEntry> {
+    Ok(DirEntry {
+        qid: qid_from_attr(&try!(entry.metadata())),
+        offset: offset,
+        typ: 0,
+        name: entry.file_name().to_string_lossy().into_owned()
     })
 }

@@ -414,17 +414,19 @@ impl DirEntry {
 
 /// Directory entry array
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DirEntryData(Vec<DirEntry>);
+pub struct DirEntryData {
+    pub data: Vec<DirEntry>,
+}
 
 impl DirEntryData {
     pub fn new() -> DirEntryData { Self::with(Vec::new()) }
-    pub fn with(v: Vec<DirEntry>) -> DirEntryData { DirEntryData(v) }
-    pub fn data(&self) -> &[DirEntry] { &self.0 }
+    pub fn with(v: Vec<DirEntry>) -> DirEntryData { DirEntryData { data: v } }
+    pub fn data(&self) -> &[DirEntry] { &self.data }
     pub fn size(&self) -> u32 {
-        self.0.iter().fold(0, |a, e| a + e.size()) as u32
+        self.data.iter().fold(0, |a, e| a + e.size()) as u32
     }
     pub fn push(&mut self, entry: DirEntry) {
-        self.0.push(entry);
+        self.data.push(entry);
     }
 }
 
