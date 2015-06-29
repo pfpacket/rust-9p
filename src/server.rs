@@ -9,7 +9,7 @@ extern crate libc;
 extern crate byteorder;
 
 use std::ops::DerefMut;
-use std::net::TcpListener;
+use std::net::{TcpStream, TcpListener};
 use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
 use std::{io, result, thread, process};
@@ -328,6 +328,10 @@ fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
     Ok((proto, addr.to_owned() + ":" + port))
 }
 
+fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
+    stream.set_nodelay(true)
+}
+
 /// Start the 9P filesystem (fork child processes)
 ///
 /// This function forks a child process to handle its 9P messages
@@ -353,6 +357,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
             nix::unistd::Fork::Child => {
                 info!("ServerProcess={} starts", remote);
 
+                try!(setup_tcp_stream(&stream));
                 let result = try!(ServerInstance::new(filesystem, stream)).dispatch();
 
                 info!("ServerProcess={} finished: {:?}", remote, result);
@@ -380,15 +385,14 @@ pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Re
 
     loop {
         let (stream, remote) = try!(listener.accept());
-        let fs = arc_fs.clone();
-        let _ = thread::Builder::new().name(format!("{}", remote)).spawn(move || {
-            info!("ServerThread={:?} started",
-                thread::current().name().unwrap_or("NoInfo"));
+        let (fs, thread_name) = (arc_fs.clone(), format!("{}", remote));
+        let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
+            info!("ServerThread={:?} started", thread_name);
 
+            try!(setup_tcp_stream(&stream));
             let result = try!(MtServerInstance::new(fs, stream)).dispatch();
 
-            info!("ServerThread={:?} finished: {:?}",
-                thread::current().name().unwrap_or("NoInfo"), result);
+            info!("ServerThread={:?} finished: {:?}", thread_name, result);
             result
         });
     }

@@ -1,6 +1,8 @@
 
 //! A library to deal with 9P, especially 9P2000.L, a Plan 9 file protocol
 
+#![feature(tcp)]
+
 #[macro_use]
 extern crate log;
 #[macro_use]
