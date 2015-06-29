@@ -163,7 +163,6 @@ pub use self::lstatus::LockStatus;
 /// # Protocol
 /// 9P2000/9P2000.L
 pub mod qt {
-    use std::fs;
     bitflags! {
         flags QidType: u8 {
             #[doc = "Type bit for directories"]
@@ -187,14 +186,14 @@ pub mod qt {
         }
     }
 
-    impl From<fs::FileType> for QidType {
-        fn from(typ: fs::FileType) -> Self {
+    impl From<::std::fs::FileType> for QidType {
+        fn from(typ: ::std::fs::FileType) -> Self {
             From::from(&typ)
         }
     }
 
-    impl<'a> From<&'a fs::FileType> for QidType {
-        fn from(typ: &'a fs::FileType) -> Self {
+    impl<'a> From<&'a ::std::fs::FileType> for QidType {
+        fn from(typ: &'a ::std::fs::FileType) -> Self {
             let mut qid_type = FILE;
             if typ.is_dir() { qid_type.insert(DIR) }
             if typ.is_symlink() { qid_type.insert(SYMLINK) }

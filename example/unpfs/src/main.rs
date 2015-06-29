@@ -15,9 +15,7 @@ use utils::*;
 
 struct UnpfsFid {
     realpath: PathBuf,
-    file: Option<fs::File>,
-    readdir: Option<std::iter::Enumerate<fs::ReadDir>>,
-    peeked_dir: Option<DirEntry>,
+    file: Option<fs::File>
 }
 
 impl UnpfsFid {
@@ -25,8 +23,6 @@ impl UnpfsFid {
         UnpfsFid {
             realpath: Path::new(path).to_path_buf(),
             file: None,
-            readdir: None,
-            peeked_dir: None,
         }
     }
 }
@@ -100,25 +96,19 @@ impl rs9p::Filesystem for Unpfs {
         Ok(Fcall::Rreadlink { target: link.to_string_lossy().into_owned() })
     }
 
-    fn rreaddir(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
-        let aux = fid.aux();
+    fn rreaddir(&mut self, fid: &mut Fid<Self::Fid>, off: u64, count: u32) -> Result<Fcall> {
         let mut dirents = DirEntryData::new();
 
-        if offset == 0 {
-            aux.readdir = Some(try!(fs::read_dir(&aux.realpath)).enumerate());
+        let offset = if off == 0 {
             dirents.push(try!(get_dirent_from(&".", 0)));
             dirents.push(try!(get_dirent_from(&"..", 1)));
-        }
+            off
+        } else { off - 1 } as usize;
 
-        if let Some(ref dirent) = aux.peeked_dir {
-            dirents.push(dirent.clone());
-        }
-        aux.peeked_dir = None;
-
-        for (i, entry) in aux.readdir.as_mut().unwrap() {
+        let entries = try!(fs::read_dir(&fid.aux().realpath));
+        for (i, entry) in entries.enumerate().skip(offset) {
             let dirent = try!(get_dirent(&try!(entry), 2 + i as u64));
             if dirents.size() + dirent.size() > count {
-                aux.peeked_dir = Some(dirent);
                 break;
             }
             dirents.push(dirent);
