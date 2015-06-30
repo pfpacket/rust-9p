@@ -4,7 +4,7 @@ extern crate rs9p;
 
 use std::fs;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::io::{self, Seek, SeekFrom, Read, Write};
 use std::os::unix::prelude::*;
 use rs9p::*;
@@ -20,10 +20,7 @@ struct UnpfsFid {
 
 impl UnpfsFid {
     fn new<P: AsRef<OsStr> + ?Sized>(path: &P) -> UnpfsFid {
-        UnpfsFid {
-            realpath: Path::new(path).to_path_buf(),
-            file: None,
-        }
+        UnpfsFid { realpath: PathBuf::from(path), file: None, }
     }
 }
 
