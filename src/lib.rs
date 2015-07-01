@@ -10,13 +10,18 @@ extern crate bitflags;
 #[macro_use]
 extern crate enum_primitive;
 
+#[macro_use]
+mod utils;
 pub mod error;
 pub mod fcall;
 pub mod serialize;
 pub mod server;
+pub mod thread;
 
+pub use utils::Result;
 pub use error::errno as errno;
 pub use error::string as errstr;
 pub use error::Error;
 pub use fcall::*;
-pub use server::{Fid, Filesystem, Result, srv, srv_mt};
+pub use server::{srv, srv_spawn};
+pub use thread::{srv_mt};

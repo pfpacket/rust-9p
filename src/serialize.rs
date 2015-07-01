@@ -11,7 +11,7 @@ use std::io::{self, Read, Write, Cursor};
 use self::num::FromPrimitive;
 use self::byteorder::{Error, Result, LittleEndian, ReadBytesExt, WriteBytesExt};
 
-macro_rules! io_error {
+macro_rules! bo_io_error {
     ($kind:ident, $msg:expr) => {
         Err(byteorder::Error::Io(io::Error::new(io::ErrorKind::$kind, $msg)))
     }
@@ -408,7 +408,7 @@ impl Decodable for String {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u16 = try!(Decodable::decode(r));
         let buf = try!(read_exact(r, len as usize));
-        String::from_utf8(buf).or(io_error!(Other, "Invalid UTF-8 sequence"))
+        String::from_utf8(buf).or(bo_io_error!(Other, "Invalid UTF-8 sequence"))
     }
 }
 
@@ -621,7 +621,7 @@ impl Decodable for Msg {
             Some(MsgType::Tremove)      => Fcall::Tremove { fid: decode!(buf) },
             Some(MsgType::Rremove)      => Fcall::Rremove,
             Some(MsgType::Tlerror) | None =>
-                return io_error!(Other, "Invalid message type")
+                return bo_io_error!(Other, "Invalid message type")
         };
 
         Ok(Msg { typ: msg_type.unwrap(), tag: tag, body: body })

@@ -17,3 +17,6 @@ nix = "*"
 byteorder = "*"
 bitflags = "*"
 enum_primitive = "*"
+
+[dependencies.comm]
+git = "https://github.com/mahkoh/comm"

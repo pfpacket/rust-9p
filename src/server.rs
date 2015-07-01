@@ -8,25 +8,18 @@ extern crate nix;
 extern crate libc;
 extern crate byteorder;
 
+use std::{thread, process};
 use std::ops::DerefMut;
-use std::net::{TcpStream, TcpListener};
+use std::net::TcpListener;
 use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
-use std::{io, result, thread, process};
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
 
 use fcall::*;
 use serialize;
 use error;
 use error::errno::*;
-
-pub type Result<T> = result::Result<T, error::Error>;
-
-macro_rules! io_error {
-    ($kind:ident, $msg:expr) => {
-        Err(io::Error::new(io::ErrorKind::$kind, $msg))
-    }
-}
+use utils::{self, Result};
 
 /// Represents a fid of clients holding associated `Filesystem::Fid`
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -164,22 +157,22 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
                 &mut self.fids)
             );
 
-            try!(respond(&mut self.stream, fcall, tag));
+            try!(utils::respond(&mut self.stream, fcall, tag));
         }
     }
 }
 
-struct MtServerInstance<Fs: Filesystem, RwExt> {
+struct SpawnServerInstance<Fs: Filesystem, RwExt> {
     fs: Arc<Mutex<Fs>>,
     stream: RwExt,
     fids: HashMap<u32, Fid<Fs::Fid>>,
 }
 
-impl<Fs, RwExt> MtServerInstance<Fs, RwExt>
+impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
     where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
 {
-    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt) -> Result<MtServerInstance<Fs, RwExt>> {
-        let server = MtServerInstance {
+    fn new(fs: Arc<Mutex<Fs>>, stream: RwExt) -> Result<SpawnServerInstance<Fs, RwExt>> {
+        let server = SpawnServerInstance {
             fs: fs,
             stream: stream,
             fids: HashMap::new(),
@@ -196,7 +189,7 @@ impl<Fs, RwExt> MtServerInstance<Fs, RwExt>
                 &mut self.fids
             ));
 
-            try!(respond(&mut self.stream, fcall, tag));
+            try!(utils::respond(&mut self.stream, fcall, tag));
         }
     }
 }
@@ -274,70 +267,12 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
     Ok((response, msg.tag))
 }
 
-fn respond<WExt: WriteBytesExt>(stream: &mut WExt, res: Fcall, tag: u16) -> Result<MsgType> {
-    let msg_type = match res {
-        // 9P2000.L
-        Fcall::Rlerror { .. }       => MsgType::Rlerror,
-        Fcall::Rstatfs { .. }       => MsgType::Rstatfs,
-        Fcall::Rlopen { .. }        => MsgType::Rlopen,
-        Fcall::Rlcreate { .. }      => MsgType::Rlcreate,
-        Fcall::Rsymlink { .. }      => MsgType::Rsymlink,
-        Fcall::Rmknod { .. }        => MsgType::Rmknod,
-        Fcall::Rrename              => MsgType::Rrename,
-        Fcall::Rreadlink { .. }     => MsgType::Rreadlink,
-        Fcall::Rgetattr { .. }      => MsgType::Rgetattr,
-        Fcall::Rsetattr             => MsgType::Rsetattr,
-        Fcall::Rxattrwalk { .. }    => MsgType::Rxattrwalk,
-        Fcall::Rxattrcreate         => MsgType::Rxattrcreate,
-        Fcall::Rreaddir { .. }      => MsgType::Rreaddir,
-        Fcall::Rfsync               => MsgType::Rfsync,
-        Fcall::Rlock { .. }         => MsgType::Rlock,
-        Fcall::Rgetlock { .. }      => MsgType::Rgetlock,
-        Fcall::Rlink                => MsgType::Rlink,
-        Fcall::Rmkdir { .. }        => MsgType::Rmkdir,
-        Fcall::Rrenameat            => MsgType::Rrenameat,
-        Fcall::Runlinkat            => MsgType::Runlinkat,
-
-        // 9P2000.u
-        Fcall::Rauth { .. }         => MsgType::Rauth,
-        Fcall::Rattach { .. }       => MsgType::Rattach,
-
-        // 9P2000
-        Fcall::Rversion { .. }      => MsgType::Rversion,
-        Fcall::Rflush               => MsgType::Rflush,
-        Fcall::Rwalk { .. }         => MsgType::Rwalk,
-        Fcall::Rread { .. }         => MsgType::Rread,
-        Fcall::Rwrite { .. }        => MsgType::Rwrite,
-        Fcall::Rclunk               => MsgType::Rclunk,
-        Fcall::Rremove              => MsgType::Rremove,
-        _ => return try!(io_error!(Other, "Invalid 9P message in this context")),
-    };
-
-    let msg = Msg { typ: msg_type, tag: tag, body: res };
-    try!(serialize::write_msg(stream, &msg));
-
-    Ok(msg_type)
-}
-
-// return: (proto, addr:port)
-fn parse_proto(arg: &str) -> result::Result<(&str, String), ()> {
-    let mut split = arg.split("!");
-    let proto = try!(split.nth(0).ok_or(()));
-    let addr  = try!(split.nth(0).ok_or(()));
-    let port  = try!(split.nth(0).ok_or(()));
-    Ok((proto, addr.to_owned() + ":" + port))
-}
-
-fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
-    stream.set_nodelay(true)
-}
-
 /// Start the 9P filesystem (fork child processes)
 ///
 /// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(parse_proto(addr).or(
+    let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
         io_error!(InvalidInput, "Invalid protocol or address")
     ));
 
@@ -357,7 +292,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
             nix::unistd::Fork::Child => {
                 info!("ServerProcess={} starts", remote);
 
-                try!(setup_tcp_stream(&stream));
+                try!(utils::setup_tcp_stream(&stream));
                 let result = try!(ServerInstance::new(filesystem, stream)).dispatch();
 
                 info!("ServerProcess={} finished: {:?}", remote, result);
@@ -371,8 +306,8 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 ///
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
-pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(parse_proto(addr).or(
+pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
+    let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
         io_error!(InvalidInput, "Invalid protocol or address")
     ));
 
@@ -389,8 +324,8 @@ pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Re
         let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
             info!("ServerThread={:?} started", thread_name);
 
-            try!(setup_tcp_stream(&stream));
-            let result = try!(MtServerInstance::new(fs, stream)).dispatch();
+            try!(utils::setup_tcp_stream(&stream));
+            let result = try!(SpawnServerInstance::new(fs, stream)).dispatch();
 
             info!("ServerThread={:?} finished: {:?}", thread_name, result);
             result
