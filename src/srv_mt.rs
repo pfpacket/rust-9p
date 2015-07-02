@@ -30,14 +30,8 @@ pub struct Fid<T> {
 
 /// Filesystem server implementation
 ///
-/// Implementors can represent an error condition by
-/// returning an error message string if an operation fails.
-/// It is always recommended to choose the one of the error messages
-/// in `error` module as the returned one.
-///
-/// The default implementation, returning ENOSYS error, is provided to the all methods
-/// except Rversion.
-/// The default implementation of Rversion returns a message accepting 9P2000.L.
+/// All methods are immutable for multi-threading.
+/// Implementors are expected to use interior mutability such as Mutex or RwLock.
 ///
 /// # NOTE
 /// Defined as `Srv` in 9p.h of Plan 9.
@@ -141,33 +135,29 @@ impl<Fs: Filesystem + 'static> MtServerInstance<Fs> {
                 match serialize::read_msg(&mut stream) {
                     Ok(msg) => {
                         if let Err(e) = tx.send(msg) {
-                            error!("queuer: queueing: {:?}", e)
+                            error!("queuer: queueing: {:?}", e);
                         }
                     },
-                    Err(e) => {
-                        error!("queuer: {:?}", e);
-                        break;
-                    }
+                    Err(e) => { warn!("queuer: {:?}", e); break; }
                 }
             }});
             threads.push(thread);
         }
 
         // Message dispatching
-        for i in 0..10 {
-            let rx_queue = rx.clone();
-            let mut stream = try!(self.stream.try_clone());
-            let (fsfids, filesystem) = (self.fids.clone(), self.fs.clone());
+        for _ in 0..10 {
+            let (fsfids, fs) = (self.fids.clone(), self.fs.clone());
+            let (rx, mut stream) = (rx.clone(), try!(self.stream.try_clone()));
 
             let thread = thread::spawn(move || { loop {
-                match rx_queue.recv_sync() {
+                match rx.recv_sync() {
                     Ok(msg) => {
-                        let (fcall, tag) = mt_dispatch_once(msg, &*filesystem, &fsfids).unwrap();
+                        let (fcall, tag) = mt_dispatch_once(msg, &*fs, &fsfids).unwrap();
                         if let Err(e) = utils::respond(&mut stream, fcall, tag) {
-                            error!("dispatcher: {:?}", e)
+                            error!("dispatcher: {:?}", e);
                         }
                     },
-                    Err(e) => { error!("dispatcher: {:?}", e); break; }
+                    Err(e) => { warn!("dispatcher: {:?}", e); break; }
                 }
             }});
             threads.push(thread);
@@ -250,6 +240,8 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
 ///
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
+/// The each thread will spawn a new message queueing thread
+/// and some message dispatching threads.
 pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
         io_error!(InvalidInput, "Invalid protocol or address")

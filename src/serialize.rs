@@ -365,8 +365,7 @@ impl Encodable for Msg {
         let mut raw_buf = buf.into_inner();
         let size = mem::size_of::<u32>() + raw_buf.len();
 
-        let mut size_buf = Vec::with_capacity(4);
-        try!((size as u32).encode(&mut size_buf));
+        let size_buf = stry!(Encoder::new(Vec::new()) << &(size as u32)).into_inner();
         for v in size_buf.iter().rev() { raw_buf.insert(0, *v); }
 
         try!(w.write_all(&raw_buf));

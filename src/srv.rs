@@ -302,7 +302,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     }
 }
 
-/// Start the 9P filesystem (multi threads)
+/// Start the 9P filesystem (spawning threads)
 ///
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.

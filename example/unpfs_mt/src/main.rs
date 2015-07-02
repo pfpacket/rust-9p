@@ -10,7 +10,7 @@ use std::io::{self, Seek, SeekFrom, Read, Write};
 use std::os::unix::prelude::*;
 use std::sync::Arc;
 use rs9p::*;
-use rs9p::thread::{Fid, Filesystem};
+use rs9p::srv_mt::{Fid, Filesystem};
 
 #[macro_use]
 mod utils;
@@ -44,7 +44,7 @@ impl Unpfs {
 
 unsafe impl Sync for Unpfs {}
 
-impl rs9p::thread::Filesystem for Unpfs {
+impl Filesystem for Unpfs {
     type Fid = UnpfsFid;
 
     fn rattach(&self, fid: Arc<Fid<Self::Fid>>, _afid: Option<Arc<Fid<Self::Fid>>>, _uname: &str, _aname: &str, _n_uname: u32) -> Result<Fcall> {

@@ -26,8 +26,10 @@ pub fn parse_proto(arg: &str) -> ::std::result::Result<(&str, String), ()> {
     Ok((proto, addr.to_owned() + ":" + port))
 }
 
+// See also: diod/libdiod/diod_sock.c
 pub fn setup_tcp_stream(stream: &TcpStream) -> ::std::io::Result<()> {
-    stream.set_nodelay(true)
+    try!(stream.set_nodelay(true));
+    stream.set_keepalive(Some(120))
 }
 
 pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, res: Fcall, tag: u16) -> Result<MsgType> {

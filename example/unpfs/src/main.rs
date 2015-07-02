@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::io::{self, Seek, SeekFrom, Read, Write};
 use std::os::unix::prelude::*;
 use rs9p::*;
-use rs9p::server::{Fid, Filesystem};
+use rs9p::srv::{Fid, Filesystem};
 
 #[macro_use]
 mod utils;

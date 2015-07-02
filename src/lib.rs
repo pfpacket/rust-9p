@@ -15,13 +15,13 @@ mod utils;
 pub mod error;
 pub mod fcall;
 pub mod serialize;
-pub mod server;
-pub mod thread;
+pub mod srv;
+pub mod srv_mt;
 
 pub use utils::Result;
 pub use error::errno as errno;
 pub use error::string as errstr;
 pub use error::Error;
 pub use fcall::*;
-pub use server::{srv, srv_spawn};
-pub use thread::{srv_mt};
+pub use srv::{srv, srv_spawn};
+pub use srv_mt::{srv_mt};
