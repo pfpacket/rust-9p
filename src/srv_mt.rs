@@ -40,7 +40,7 @@ pub struct Fid<T> {
 /// 9P2000.L
 pub trait Filesystem: Send + Sync {
     /// User defined fid type to be associated with a client's fid
-    type Fid: Send + Sync + 'static = ();
+    type Fid: Send + Sync + 'static;
 
     // 9P2000.L
     fn rstatfs(&self, _: Arc<Fid<Self::Fid>>)

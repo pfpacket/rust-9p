@@ -61,7 +61,7 @@ impl<T> Fid<T> {
 /// 9P2000.L
 pub trait Filesystem {
     /// User defined fid type to be associated with a client's fid
-    type Fid = ();
+    type Fid;
 
     // 9P2000.L
     fn rstatfs(&mut self, _: &mut Fid<Self::Fid>)

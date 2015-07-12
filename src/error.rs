@@ -30,6 +30,7 @@ fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
             AlreadyExists       => EALREADY,
             WouldBlock          => EAGAIN,
             InvalidInput        => EINVAL,
+            InvalidData         => EINVAL,
             TimedOut            => ETIMEDOUT,
             WriteZero           => EAGAIN,
             Interrupted         => EINTR,
