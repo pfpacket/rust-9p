@@ -159,14 +159,14 @@ impl Filesystem for Unpfs {
         let bytes = try!(file.read(&mut buf[..]));
         buf.truncate(bytes);
 
-        Ok(Fcall::Rread { data: Data::new(buf) })
+        Ok(Fcall::Rread { data: Data(buf) })
     }
 
     fn rwrite(&self, fid: Arc<Fid<Self::Fid>>, offset: u64, data: &Data) -> Result<Fcall> {
         let mut guard = wlock!(fid.aux);
         let file = guard.as_mut().unwrap().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
-        Ok(Fcall::Rwrite { count: try!(file.write(data.data())) as u32 })
+        Ok(Fcall::Rwrite { count: try!(file.write(&data.0)) as u32 })
     }
 
     fn rmkdir(&self, dfid: Arc<Fid<Self::Fid>>, name: &str, _mode: u32, _gid: u32) -> Result<Fcall> {
