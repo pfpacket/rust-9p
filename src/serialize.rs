@@ -11,7 +11,7 @@ use std::io::{self, Read, Write, Cursor};
 use self::num::FromPrimitive;
 use self::byteorder::{Error, Result, LittleEndian, ReadBytesExt, WriteBytesExt};
 
-macro_rules! io_error {
+macro_rules! bo_io_error {
     ($kind:ident, $msg:expr) => {
         Err(byteorder::Error::Io(io::Error::new(io::ErrorKind::$kind, $msg)))
     }
@@ -53,27 +53,18 @@ fn read_full<R: Read + ?Sized>(r: &mut R, buf: &mut [u8]) -> Result<()> {
     Ok(())
 }
 
-/// A serializing specific result to overload operators on Result
-pub enum SResult<T> {
-    Ok(T), Err(Error)
-}
-
-macro_rules! enc_result {
-    ($res:expr) => {
-        match $res {
-            Ok(v) => v,
-            Err(e) => return ::serialize::SResult::Err(From::from(e)),
-        }
-    }
-}
+/// A serializing specific result to overload operators on `Result`
+pub struct SResult<T>(::std::result::Result<T, Error>);
 
 /// A macro to try! `SResult`
 #[macro_export]
-macro_rules! stry {
-    ($eres:expr) => {
-        match $eres {
-            ::serialize::SResult::Ok(enc) => enc,
-            ::serialize::SResult::Err(e) => return Err(From::from(e)),
+macro_rules! stry { ($sres:expr) => { try!($sres.0) } }
+
+macro_rules! etry {
+    ($res:expr) => {
+        match $res {
+            Ok(v) => v,
+            Err(e) => return ::serialize::SResult(Err(From::from(e))),
         }
     }
 }
@@ -106,20 +97,17 @@ impl<W: WriteBytesExt> Encoder<W> {
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
     type Output = SResult<Encoder<W>>;
     fn shl(mut self, rhs: &'a T) -> Self::Output {
-        enc_result!(self.encode(rhs));
-        SResult::Ok(self)
+        etry!(self.encode(rhs));
+        SResult(Ok(self))
     }
 }
 
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for SResult<Encoder<W>> {
     type Output = Self;
     fn shl(self, rhs: &'a T) -> Self::Output {
-        let mut encoder = match self {
-            SResult::Ok(enc) => enc,
-            SResult::Err(e) => return SResult::Err(From::from(e)),
-        };
-        enc_result!(encoder.encode(rhs));
-        SResult::Ok(encoder)
+        let mut encoder = etry!(self.0);
+        etry!(encoder.encode(rhs));
+        SResult(Ok(encoder))
     }
 }
 
@@ -142,20 +130,17 @@ impl<R: ReadBytesExt> Decoder<R> {
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
     type Output = SResult<Decoder<R>>;
     fn shr(mut self, rhs: &'a mut T) -> Self::Output {
-        *rhs = enc_result!(self.decode());
-        SResult::Ok(self)
+        *rhs = etry!(self.decode());
+        SResult(Ok(self))
     }
 }
 
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for SResult<Decoder<R>> {
     type Output = Self;
     fn shr(self, rhs: &'a mut T) -> Self::Output {
-        let mut decoder = match self {
-            SResult::Ok(enc) => enc,
-            SResult::Err(e) => return SResult::Err(From::from(e)),
-        };
-        *rhs = enc_result!(decoder.decode());
-        SResult::Ok(decoder)
+        let mut decoder = etry!(self.0);
+        *rhs = etry!(decoder.decode());
+        SResult(Ok(decoder))
     }
 }
 
@@ -261,9 +246,9 @@ impl Encodable for DirEntryData {
 
 impl Encodable for Data {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let size = self.data().len();
+        let size = self.0.len();
         let bytes = try!((size as u32).encode(w)) + size;
-        try!(w.write_all(self.data()));
+        try!(w.write_all(&self.0));
         Ok(bytes)
     }
 }
@@ -365,8 +350,7 @@ impl Encodable for Msg {
         let mut raw_buf = buf.into_inner();
         let size = mem::size_of::<u32>() + raw_buf.len();
 
-        let mut size_buf = Vec::with_capacity(4);
-        try!((size as u32).encode(&mut size_buf));
+        let size_buf = stry!(Encoder::new(Vec::new()) << &(size as u32)).into_inner();
         for v in size_buf.iter().rev() { raw_buf.insert(0, *v); }
 
         try!(w.write_all(&raw_buf));
@@ -408,7 +392,7 @@ impl Decodable for String {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u16 = try!(Decodable::decode(r));
         let buf = try!(read_exact(r, len as usize));
-        String::from_utf8(buf).or(io_error!(Other, "Invalid UTF-8 sequence"))
+        String::from_utf8(buf).or(bo_io_error!(Other, "Invalid UTF-8 sequence"))
     }
 }
 
@@ -504,7 +488,7 @@ impl Decodable for Data {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u32 = try!(Decodable::decode(r));
         let buf = try!(read_exact(r, len as usize));
-        Ok(Data::new(buf))
+        Ok(Data(buf))
     }
 }
 
@@ -621,7 +605,7 @@ impl Decodable for Msg {
             Some(MsgType::Tremove)      => Fcall::Tremove { fid: decode!(buf) },
             Some(MsgType::Rremove)      => Fcall::Rremove,
             Some(MsgType::Tlerror) | None =>
-                return io_error!(Other, "Invalid message type")
+                return bo_io_error!(Other, "Invalid message type")
         };
 
         Ok(Msg { typ: msg_type.unwrap(), tag: tag, body: body })

@@ -429,12 +429,7 @@ impl DirEntryData {
 /// # Protocol
 /// 9P2000/9P2000.L
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Data(Vec<u8>);
-
-impl Data {
-    pub fn new(v: Vec<u8>) -> Data { Data(v) }
-    pub fn data(&self) -> &[u8] { &self.0 }
-}
+pub struct Data(pub Vec<u8>);
 
 /// Similar to Linux `struct flock`
 ///
