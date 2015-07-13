@@ -53,7 +53,7 @@ fn read_full<R: Read + ?Sized>(r: &mut R, buf: &mut [u8]) -> Result<()> {
     Ok(())
 }
 
-/// A serializing specific result to overload operators on Result
+/// A serializing specific result to overload operators on `Result`
 pub struct SResult<T>(::std::result::Result<T, Error>);
 
 /// A macro to try! `SResult`
