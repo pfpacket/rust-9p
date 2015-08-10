@@ -1,12 +1,15 @@
 
+extern crate net2;
 extern crate byteorder;
 
 use std::net::TcpStream;
 use self::byteorder::WriteBytesExt;
+use self::net2::TcpStreamExt;
 
 use fcall::*;
 use error;
 use serialize;
+use std::time::Duration;
 
 pub type Result<T> = ::std::result::Result<T, error::Error>;
 
@@ -28,8 +31,8 @@ pub fn parse_proto(arg: &str) -> ::std::result::Result<(&str, String), ()> {
 
 // See also: diod/libdiod/diod_sock.c
 pub fn setup_tcp_stream(stream: &TcpStream) -> ::std::io::Result<()> {
-    try!(stream.set_nodelay(true));
-    stream.set_keepalive(Some(120))
+    try!(TcpStreamExt::set_nodelay(stream, true));
+    TcpStreamExt::set_keepalive(stream, Some(Duration::from_secs(120)))
 }
 
 pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, res: Fcall, tag: u16) -> Result<MsgType> {

@@ -41,7 +41,7 @@ fn read_exact<R: Read + ?Sized>(r: &mut R, size: usize) -> Result<Vec<u8>> {
 }
 
 fn read_full<R: Read + ?Sized>(r: &mut R, buf: &mut [u8]) -> Result<()> {
-    let mut nread = 0usize;
+    let mut nread = 0;
     while nread < buf.len() {
         match r.read(&mut buf[nread..]) {
             Ok(0) => return Err(Error::UnexpectedEOF),

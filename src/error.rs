@@ -16,7 +16,7 @@ use error::errno::*;
 
 fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
     e.raw_os_error()
-        .map(|n| nix::errno::from_i32(n))
+        .map(nix::errno::from_i32)
         .unwrap_or(match e.kind() {
             NotFound            => ENOENT,
             PermissionDenied    => EPERM,
