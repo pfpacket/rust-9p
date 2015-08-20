@@ -360,7 +360,7 @@ impl Encodable for Msg {
 
 
 /// Trait representing a type which can be deserialized from binary
-pub trait Decodable {
+pub trait Decodable: Sized {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self>;
 }
 
