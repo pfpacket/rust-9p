@@ -31,8 +31,9 @@ pub fn parse_proto(arg: &str) -> ::std::result::Result<(&str, String), ()> {
 
 // See also: diod/libdiod/diod_sock.c
 pub fn setup_tcp_stream(stream: &TcpStream) -> ::std::io::Result<()> {
-    try!(TcpStreamExt::set_nodelay(stream, true));
-    TcpStreamExt::set_keepalive(stream, Some(Duration::from_secs(120)))
+    //try!(TcpStreamExt::set_nodelay(stream, true));
+    //TcpStreamExt::set_keepalive(stream, Some(Duration::from_secs(120)))
+    TcpStreamExt::set_nodelay(stream, true)
 }
 
 pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, res: Fcall, tag: u16) -> Result<MsgType> {
