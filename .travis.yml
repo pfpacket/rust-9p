@@ -5,6 +5,8 @@ script:
   - cargo build --verbose
   - cargo test --verbose
   - cargo doc
+  - cd example/unpfs/ && cargo build --verbose
+  - cd ../unpfs_mt/ && cargo build --verbose
 after_success: |
   [ $TRAVIS_BRANCH = master ] &&
   echo '<meta http-equiv=refresh content=0;url=rust-9p/index.html>' > target/doc/index.html &&
