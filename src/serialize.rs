@@ -82,14 +82,17 @@ pub struct Encoder<W> {
 
 impl<W: WriteBytesExt> Encoder<W> {
     pub fn new(writer: W) -> Encoder<W> { Encoder { writer: writer, bytes: 0 } }
+
     /// Return total bytes written
     pub fn bytes_written(&self) -> usize { self.bytes }
+
     /// Encode data, equivalent to: decoder << data
     pub fn encode<T: Encodable,>(&mut self, data: &T) -> Result<usize> {
         let bytes = try!(data.encode(&mut self.writer));
         self.bytes += bytes;
         Ok(bytes)
     }
+
     /// Get inner writer
     pub fn into_inner(self) -> W { self.writer }
 }
@@ -281,7 +284,8 @@ impl<T: Encodable> Encodable for Vec<T> {
 
 impl Encodable for Msg {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let buf = Encoder::new(Vec::with_capacity(8196)) << &(self.typ as u8) << &self.tag;
+        let typ = MsgType::from(&self.body);
+        let buf = Encoder::new(Vec::with_capacity(8196)) << &(typ as u8) << &self.tag;
         let buf = stry!(match self.body {
             // 9P2000.L
             Fcall::Rlerror { ref ecode }                                                    => { buf << ecode },
@@ -608,7 +612,7 @@ impl Decodable for Msg {
                 return bo_io_error!(Other, "Invalid message type")
         };
 
-        Ok(Msg { typ: msg_type.unwrap(), tag: tag, body: body })
+        Ok(Msg { tag: tag, body: body })
     }
 }
 
@@ -650,7 +654,6 @@ fn decoder_test1() {
 #[test]
 fn msg_encode_decode1() {
     let expected = Msg {
-        typ: MsgType::Rversion,
         tag: 0xdead,
         body: Fcall::Rversion {
             msize: 40,

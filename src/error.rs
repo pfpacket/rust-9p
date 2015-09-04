@@ -14,7 +14,7 @@ use std::io::ErrorKind::*;
 use std::error as stderror;
 use error::errno::*;
 
-fn errno_from_ioerror(e: &io::Error) ->nix::errno::Errno {
+fn errno_from_ioerror(e: &io::Error) -> nix::errno::Errno {
     e.raw_os_error()
         .map(nix::errno::from_i32)
         .unwrap_or(match e.kind() {
@@ -54,7 +54,7 @@ pub enum Error {
 }
 
 impl Error {
-    /// Convert to an errno
+    /// Get an errno representations
     pub fn errno(&self) -> nix::errno::Errno {
         match *self {
             Error::No(ref e) => e.clone(),

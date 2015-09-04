@@ -4,7 +4,6 @@
 //! # Supported protocol
 //! 9P2000.L
 
-extern crate num;
 use std::mem::{size_of, size_of_val};
 use std::fs;
 use std::os::unix::fs::MetadataExt;
@@ -276,7 +275,7 @@ pub struct Qid {
 }
 
 /// Filesystem information corresponding to `struct statfs` of Linux.
-/// 
+///
 /// # Protocol
 /// 9P2000.L
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -537,16 +536,26 @@ enum_from_primitive! {
     }
 }
 
-/// Envelope for 9P messages
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Msg {
-    /// Message type, one of the constants in MsgType
-    pub typ: MsgType,
-    /// Chosen and used by the client to identify the message.
-    /// The reply to the message will have the same tag
-    pub tag: u16,
-    /// Message body encapsulating the various 9P messages
-    pub body: Fcall
+impl MsgType {
+    /// If the message type is T-message
+    pub fn is_t(&self) -> bool {
+        !self.is_r()
+    }
+
+    /// If the message type is R-message
+    pub fn is_r(&self) -> bool {
+        use MsgType::*;
+        match *self {
+            Rlerror | Rstatfs | Rlopen | Rlcreate |
+            Rsymlink | Rmknod | Rrename | Rreadlink |
+            Rgetattr | Rsetattr | Rxattrwalk | Rxattrcreate |
+            Rreaddir | Rfsync | Rlock | Rgetlock |
+            Rlink | Rmkdir | Rrenameat | Runlinkat |
+            Rversion | Rauth | Rattach | Rflush |
+            Rwalk | Rread | Rwrite | Rclunk | Rremove => true,
+            _ => false
+        }
+    }
 }
 
 /// A data type encapsulating the various 9P messages
@@ -632,7 +641,7 @@ pub enum Fcall {
 }
 
 impl Fcall {
-    /// Get request's fid if available
+    /// Get request's fids
     pub fn fid(&self) -> Vec<u32> {
         match self {
             &Fcall::Tstatfs { fid }                         => vec![fid],
@@ -678,6 +687,80 @@ impl Fcall {
     pub fn qid(&self) -> Option<Qid> {
         match self {
             _ => None
+        }
+    }
+}
+
+/// Envelope for 9P messages
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Msg {
+    /// Chosen and used by the client to identify the message.
+    /// The reply to the message will have the same tag
+    pub tag: u16,
+    /// Message body encapsulating the various 9P messages
+    pub body: Fcall
+}
+
+impl<'a> From<&'a Fcall> for MsgType {
+    fn from(fcall: &'a Fcall) -> MsgType {
+        match *fcall {
+            Fcall::Rlerror { .. }       =>  MsgType::Rlerror,
+            Fcall::Tstatfs { .. }       =>  MsgType::Tstatfs,
+            Fcall::Rstatfs { .. }       =>  MsgType::Rstatfs,
+            Fcall::Tlopen { .. }        =>  MsgType::Tlopen,
+            Fcall::Rlopen { .. }        =>  MsgType::Rlopen,
+            Fcall::Tlcreate { .. }      =>  MsgType::Tlcreate,
+            Fcall::Rlcreate { .. }      =>  MsgType::Rlcreate,
+            Fcall::Tsymlink { .. }      =>  MsgType::Tsymlink,
+            Fcall::Rsymlink { .. }      =>  MsgType::Rsymlink,
+            Fcall::Tmknod { .. }        =>  MsgType::Tmknod,
+            Fcall::Rmknod { .. }        =>  MsgType::Rmknod,
+            Fcall::Trename { .. }       =>  MsgType::Trename,
+            Fcall::Rrename              =>  MsgType::Rrename,
+            Fcall::Treadlink { .. }     =>  MsgType::Treadlink,
+            Fcall::Rreadlink { .. }     =>  MsgType::Rreadlink,
+            Fcall::Tgetattr { .. }      =>  MsgType::Tgetattr,
+            Fcall::Rgetattr { .. }      =>  MsgType::Rgetattr,
+            Fcall::Tsetattr { .. }      =>  MsgType::Tsetattr,
+            Fcall::Rsetattr             =>  MsgType::Rsetattr,
+            Fcall::Txattrwalk { .. }    =>  MsgType::Txattrwalk,
+            Fcall::Rxattrwalk { .. }    =>  MsgType::Rxattrwalk,
+            Fcall::Txattrcreate { .. }  =>  MsgType::Txattrcreate,
+            Fcall::Rxattrcreate         =>  MsgType::Rxattrcreate,
+            Fcall::Treaddir { .. }      =>  MsgType::Treaddir,
+            Fcall::Rreaddir { .. }      =>  MsgType::Rreaddir,
+            Fcall::Tfsync { .. }        =>  MsgType::Tfsync,
+            Fcall::Rfsync               =>  MsgType::Rfsync,
+            Fcall::Tlock { .. }         =>  MsgType::Tlock,
+            Fcall::Rlock { .. }         =>  MsgType::Rlock,
+            Fcall::Tgetlock { .. }      =>  MsgType::Tgetlock,
+            Fcall::Rgetlock { .. }      =>  MsgType::Rgetlock,
+            Fcall::Tlink { .. }         =>  MsgType::Tlink,
+            Fcall::Rlink                =>  MsgType::Rlink,
+            Fcall::Tmkdir { .. }        =>  MsgType::Tmkdir,
+            Fcall::Rmkdir { .. }        =>  MsgType::Rmkdir,
+            Fcall::Trenameat { .. }     =>  MsgType::Trenameat,
+            Fcall::Rrenameat            =>  MsgType::Rrenameat,
+            Fcall::Tunlinkat { .. }     =>  MsgType::Tunlinkat,
+            Fcall::Runlinkat            =>  MsgType::Runlinkat,
+            Fcall::Tauth { .. }         =>  MsgType::Tauth,
+            Fcall::Rauth { .. }         =>  MsgType::Rauth,
+            Fcall::Tattach { .. }       =>  MsgType::Tattach,
+            Fcall::Rattach { .. }       =>  MsgType::Rattach,
+            Fcall::Tversion { .. }      =>  MsgType::Tversion,
+            Fcall::Rversion { .. }      =>  MsgType::Rversion,
+            Fcall::Tflush { .. }        =>  MsgType::Tflush,
+            Fcall::Rflush               =>  MsgType::Rflush,
+            Fcall::Twalk { .. }         =>  MsgType::Twalk,
+            Fcall::Rwalk { .. }         =>  MsgType::Rwalk,
+            Fcall::Tread { .. }         =>  MsgType::Tread,
+            Fcall::Rread { .. }         =>  MsgType::Rread,
+            Fcall::Twrite { .. }        =>  MsgType::Twrite,
+            Fcall::Rwrite { .. }        =>  MsgType::Rwrite,
+            Fcall::Tclunk { .. }        =>  MsgType::Tclunk,
+            Fcall::Rclunk               =>  MsgType::Rclunk,
+            Fcall::Tremove { .. }       =>  MsgType::Tremove,
+            Fcall::Rremove              =>  MsgType::Rremove,
         }
     }
 }

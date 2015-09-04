@@ -122,7 +122,7 @@ impl Filesystem for Unpfs {
             let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
             let omode = nix::sys::stat::Mode::from_bits_truncate(0);
             let fd = try!(nix::fcntl::open(&fid.aux().realpath, oflags, omode));
-            fid.aux().file = unsafe { Some(fs::File::from_raw_fd(fd)) };
+            fid.aux().file = Some(unsafe { fs::File::from_raw_fd(fd) });
         }
 
         Ok(Fcall::Rlopen { qid: qid, iounit: 0 })
