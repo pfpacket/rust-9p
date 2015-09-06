@@ -1,7 +1,6 @@
 
 extern crate nix;
 extern crate rs9p;
-extern crate env_logger;
 
 use std::fs;
 use std::ffi::OsStr;
@@ -224,7 +223,6 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
 }
 
 fn main() {
-    env_logger::init().unwrap();
     let args = std::env::args().collect();
     let exit_code = match unpfs_main(args) {
         Ok(code) => code,

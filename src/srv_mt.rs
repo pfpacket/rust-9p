@@ -5,7 +5,6 @@
 //! 9P2000.L
 
 extern crate nix;
-extern crate libc;
 extern crate byteorder;
 extern crate comm;
 
@@ -219,7 +218,7 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
             r
         },
         Fcall::Tremove { fid: _ }                                                       => { fs.rremove(fids[0].clone()) },
-        _ => return try!(io_error!(Other, "Invalid 9P message received")),
+        _ => return res!(io_err!(Other, "Invalid 9P message received")),
     };
 
     // Add newfids
@@ -244,11 +243,11 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
 /// and some message dispatching threads.
 pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
-        io_error!(InvalidInput, "Invalid protocol or address")
+        Err(io_err!(InvalidInput, "Invalid protocol or address"))
     ));
 
     if proto != "tcp" {
-        return try!(io_error!(InvalidInput, format!("Unsupported protocol: {}", proto)));
+        return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
     }
 
     let arc_fs = Arc::new(filesystem);

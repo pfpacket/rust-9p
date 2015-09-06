@@ -252,7 +252,7 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
             r
         },
         Fcall::Tremove { fid: _ }                                                       => { fs.rremove(&mut fids[0]) },
-        _ => return try!(io_error!(Other, "Invalid 9P message received")),
+        _ => return res!(io_err!(Other, "Invalid 9P message received")),
     };
 
     // Restore the fids taken
@@ -273,11 +273,11 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
-        io_error!(InvalidInput, "Invalid protocol or address")
+        Err(io_err!(InvalidInput, "Invalid protocol or address"))
     ));
 
     if proto != "tcp" {
-        return try!(io_error!(InvalidInput, format!("Unsupported protocol: {}", proto)));
+        return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
     }
 
     // Do not wait for child processes
@@ -308,11 +308,11 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 /// when a client connects to the server.
 pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
-        io_error!(InvalidInput, "Invalid protocol or address")
+        Err(io_err!(InvalidInput, "Invalid protocol or address"))
     ));
 
     if proto != "tcp" {
-        return try!(io_error!(InvalidInput, format!("Unsupported protocol: {}", proto)));
+        return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
     }
 
     let arc_fs = Arc::new(Mutex::new(filesystem));

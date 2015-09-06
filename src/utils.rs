@@ -12,11 +12,16 @@ use serialize;
 
 pub type Result<T> = ::std::result::Result<T, error::Error>;
 
-#[macro_export]
-macro_rules! io_error {
-    ($kind:ident, $msg:expr) => {
-        Err(::std::io::Error::new(::std::io::ErrorKind::$kind, $msg))
-    }
+macro_rules! io_err {
+    ($kind:ident, $msg:expr) => { ::std::io::Error::new(::std::io::ErrorKind::$kind, $msg) }
+}
+
+macro_rules! bo_err {
+    ($kind:ident, $msg:expr) => { byteorder::Error::Io(io_err!($kind, $msg)) }
+}
+
+macro_rules! res {
+    ($err:expr) => { Err(From::from($err)) }
 }
 
 // return: (proto, addr:port)
@@ -35,13 +40,13 @@ pub fn setup_tcp_stream(stream: &TcpStream) -> ::std::io::Result<()> {
     TcpStreamExt::set_nodelay(stream, true)
 }
 
-pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, res: Fcall, tag: u16) -> Result<MsgType> {
-    let msg_type = MsgType::from(&res);
+pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, body: Fcall, tag: u16) -> Result<MsgType> {
+    let msg_type = MsgType::from(&body);
     if msg_type.is_t() {
-        return try!(io_error!(Other, "Invalid 9P message in this context"));
+        return res!(io_err!(Other, "Invalid 9P message in this context"));
     };
 
-    let msg = Msg { tag: tag, body: res };
+    let msg = Msg { tag: tag, body: body };
     try!(serialize::write_msg(stream, &msg));
 
     Ok(msg_type)
