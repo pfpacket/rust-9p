@@ -26,16 +26,12 @@ use utils::{self, Result};
 pub struct Fid<T> {
     /// Raw client side fid
     pub fid: u32,
-    /// Qid of this fid
-    pub qid: Option<Qid>,
     /// `Filesystem::Fid` associated with this fid.
     /// Changing this value affects the continuous callbacks.
     pub aux: Option<T>,
 }
 
 impl<T> Fid<T> {
-    /// Unwrap and return a reference to the qid
-    pub fn qid(&mut self) -> &mut Qid { self.qid.as_mut().unwrap() }
     /// Unwrap and return a reference to the aux
     ///
     /// # Panics
@@ -197,7 +193,7 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
 fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut HashMap<u32, Fid<FsFid>>) -> Result<(Fcall, u16)> {
     // Take all fids associated with the fids which the request contains
     let mut fids: Vec<_> = msg.body.fid().iter().map(|f| fsfids.remove(&f).unwrap()).collect();
-    let mut newfids: Vec<_> = msg.body.newfid().iter().map(|f| Fid { fid: *f, qid: None, aux: None }).collect();
+    let mut newfids: Vec<_> = msg.body.newfid().iter().map(|f| Fid { fid: *f, aux: None }).collect();
 
     let result = match msg.body {
         Fcall::Tstatfs { fid: _ }                                                       => { fs.rstatfs(&mut fids[0]) },

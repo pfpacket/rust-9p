@@ -23,7 +23,6 @@ use utils::{self, Result};
 #[derive(Debug)]
 pub struct Fid<T> {
     pub fid: u32,
-    pub qid: RwLock<Option<Qid>>,
     pub aux: RwLock<Option<T>>,
 }
 
@@ -178,7 +177,7 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
         .map(|f| fsfids.read().unwrap().get(&f).unwrap().clone())
         .collect();
     let newfids: Vec<_> = msg.body.newfid().iter()
-        .map(|f| Arc::new(Fid { fid: *f, qid: RwLock::new(None), aux: RwLock::new(None) }))
+        .map(|f| Arc::new(Fid { fid: *f, aux: RwLock::new(None) }))
         .collect();
 
     let result = match msg.body {
