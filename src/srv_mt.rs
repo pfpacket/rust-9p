@@ -211,10 +211,8 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
         Fcall::Twalk { fid: _, newfid: _, ref wnames }                                  => { fs.rwalk(fids[0].clone(), newfids[0].clone(), wnames) },
         Fcall::Tread { fid: _, ref offset, ref count }                                  => { fs.rread(fids[0].clone(), *offset, *count) },
         Fcall::Twrite { fid: _, ref offset, ref data }                                  => { fs.rwrite(fids[0].clone(), *offset, data) },
-        Fcall::Tclunk { fid: _ }                                                        => {
-            let r = fs.rclunk(fids[0].clone());
-            let _ = fsfids.write().unwrap().remove(&fids[0].fid);
-            r
+        Fcall::Tclunk { fid: _ }    /* Drop the fid which the request contains */       => {
+            fs.rclunk(fids[0].clone()).map_err(|e| { fsfids.write().unwrap().remove(&fids[0].fid); e })
         },
         Fcall::Tremove { fid: _ }                                                       => { fs.rremove(fids[0].clone()) },
         _ => return res!(io_err!(Other, "Invalid 9P message received")),

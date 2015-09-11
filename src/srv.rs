@@ -202,10 +202,8 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
         Fcall::Tsymlink { fid: _, ref name, ref symtgt, ref gid }                       => { fs.rsymlink(&mut fids[0], name, symtgt, *gid) },
         Fcall::Tmknod { dfid: _, ref name, ref mode, ref major, ref minor, ref gid }    => { fs.rmknod(&mut fids[0], name, *mode, *major, *minor, *gid) },
         Fcall::Trename { fid: _, dfid: _, ref name }                                    => {
-            let (mut fid, mut dfid) = (fids.remove(0), fids.remove(0));
-            let r = fs.rrename(&mut fid, &mut dfid, name);
-            fids.push(fid); fids.push(dfid);
-            r
+            let (fid, dfid) = fids.split_at_mut(1);
+            fs.rrename(&mut fid[0], &mut dfid[0], name)
         },
         Fcall::Treadlink { fid: _ }                                                     => { fs.rreadlink(&mut fids[0]) },
         Fcall::Tgetattr { fid: _, ref req_mask }                                        => { fs.rgetattr(&mut fids[0], *req_mask) },
@@ -217,17 +215,13 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
         Fcall::Tlock { fid: _, ref flock }                                              => { fs.rlock(&mut fids[0], flock) },
         Fcall::Tgetlock { fid: _, ref flock }                                           => { fs.rgetlock(&mut fids[0], flock) },
         Fcall::Tlink { dfid: _, fid: _, ref name }                                      => {
-            let (mut dfid, mut fid) = (fids.remove(0), fids.remove(0));
-            let r = fs.rlink(&mut dfid, &mut fid, name);
-            fids.push(dfid); fids.push(fid);
-            r
+            let (dfid, fid) = fids.split_at_mut(1);
+            fs.rlink(&mut dfid[0], &mut fid[0], name)
         },
         Fcall::Tmkdir { dfid: _, ref name, ref mode, ref gid }                          => { fs.rmkdir(&mut fids[0], name, *mode, *gid) },
         Fcall::Trenameat { olddirfid: _, ref oldname, newdirfid: _, ref newname }       => {
-            let (mut old, mut new) = (fids.remove(0), fids.remove(0));
-            let r = fs.rrenameat(&mut old, oldname, &mut new, newname);
-            fids.push(old); fids.push(new);
-            r
+            let (old, new) = fids.split_at_mut(1);
+            fs.rrenameat(&mut old[0], oldname, &mut new[0], newname)
         },
         Fcall::Tunlinkat { dirfd: _, ref name, ref flags }                              => { fs.runlinkat(&mut fids[0], name, *flags) },
 
@@ -241,12 +235,7 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
         Fcall::Twalk { fid: _, newfid: _, ref wnames }                                  => { fs.rwalk(&mut fids[0], &mut newfids[0], wnames) },
         Fcall::Tread { fid: _, ref offset, ref count }                                  => { fs.rread(&mut fids[0], *offset, *count) },
         Fcall::Twrite { fid: _, ref offset, ref data }                                  => { fs.rwrite(&mut fids[0], *offset, data) },
-        Fcall::Tclunk { fid: _ }                                                        => {
-            let r = fs.rclunk(&mut fids[0]);
-            // Drop the fid which the request contains
-            if r.is_ok() { fids.clear(); }
-            r
-        },
+        Fcall::Tclunk { fid: _ }    /* Drop the fid which the request contains */       => { fs.rclunk(&mut fids[0]).map_err(|e| { fids.clear(); e }) },
         Fcall::Tremove { fid: _ }                                                       => { fs.rremove(&mut fids[0]) },
         _ => return res!(io_err!(Other, "Invalid 9P message received")),
     };
