@@ -180,7 +180,7 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
         .map(|f| Arc::new(Fid { fid: *f, aux: RwLock::new(None) }))
         .collect();
 
-    let result = match msg.body {
+    let response = match msg.body {
         Fcall::Tstatfs { fid: _ }                                                       => { fs.rstatfs(fids[0].clone()) },
         Fcall::Tlopen { fid: _, ref flags }                                             => { fs.rlopen(fids[0].clone(), *flags) },
         Fcall::Tlcreate { fid: _, ref name, ref flags, ref mode, ref gid }              => { fs.rlcreate(fids[0].clone(), name, *flags, *mode, *gid) },
@@ -215,19 +215,12 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
             fs.rclunk(fids[0].clone()).map_err(|e| { fsfids.write().unwrap().remove(&fids[0].fid); e })
         },
         Fcall::Tremove { fid: _ }                                                       => { fs.rremove(fids[0].clone()) },
-        _ => return res!(io_err!(Other, "Invalid 9P message received")),
-    };
+        _                                                                               => return res!(io_err!(Other, "Invalid 9P message received")),
+    }.unwrap_or_else(|e| Fcall::Rlerror { ecode: e.errno() as u32 });
 
     // Add newfids
-    {
-        let mut fsfids_unlocked = fsfids.write().unwrap();
-        for f in newfids { fsfids_unlocked.insert(f.fid, f); }
-    }
-
-    let response = match result {
-        Ok(res)  => res,
-        Err(err) => Fcall::Rlerror { ecode: err.errno() as u32 }
-    };
+    let mut fsfids_unlocked = fsfids.write().unwrap();
+    for f in newfids { fsfids_unlocked.insert(f.fid, f); }
 
     Ok((response, msg.tag))
 }

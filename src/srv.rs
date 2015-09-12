@@ -195,7 +195,7 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
     let mut fids: Vec<_> = msg.body.fid().iter().map(|f| fsfids.remove(&f).unwrap()).collect();
     let mut newfids: Vec<_> = msg.body.newfid().iter().map(|f| Fid { fid: *f, aux: None }).collect();
 
-    let result = match msg.body {
+    let response = match msg.body {
         Fcall::Tstatfs { fid: _ }                                                       => { fs.rstatfs(&mut fids[0]) },
         Fcall::Tlopen { fid: _, ref flags }                                             => { fs.rlopen(&mut fids[0], *flags) },
         Fcall::Tlcreate { fid: _, ref name, ref flags, ref mode, ref gid }              => { fs.rlcreate(&mut fids[0], name, *flags, *mode, *gid) },
@@ -237,17 +237,12 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
         Fcall::Twrite { fid: _, ref offset, ref data }                                  => { fs.rwrite(&mut fids[0], *offset, data) },
         Fcall::Tclunk { fid: _ }    /* Drop the fid which the request contains */       => { fs.rclunk(&mut fids[0]).map_err(|e| { fids.clear(); e }) },
         Fcall::Tremove { fid: _ }                                                       => { fs.rremove(&mut fids[0]) },
-        _ => return res!(io_err!(Other, "Invalid 9P message received")),
-    };
+        _                                                                               => return res!(io_err!(Other, "Invalid 9P message received")),
+    }.unwrap_or_else(|e| Fcall::Rlerror { ecode: e.errno() as u32 });
 
     // Restore the fids taken
     for f in fids { fsfids.insert(f.fid, f); }
     for f in newfids { fsfids.insert(f.fid, f); }
-
-    let response = match result {
-        Ok(res)  => res,
-        Err(err) => Fcall::Rlerror { ecode: err.errno() as u32 }
-    };
 
     Ok((response, msg.tag))
 }
