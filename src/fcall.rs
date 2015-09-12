@@ -17,9 +17,17 @@ pub const P92000L: &'static str = "9P2000.L";
 pub const V9FS_PORT: u16        = 564;
 
 // 9P Magic Numbers
+/// Special tag which `Tversion`/`Rversion` must use as `tag`
 pub const NOTAG: u16            = !0;
+/// Special value which `Tattach` with no auth must use as `afid`
+///
+/// If the client does not wish to authenticate the connection, or knows that authentication is
+/// not required, the afid field in the attach message should be set to `NOFID`
 pub const NOFID: u32            = !0;
 pub const NONUNAME: u32         = !0;
+/// Ample room for `Twrite`/`Rread` header
+///
+/// size[4] Tread/Twrite[2] tag[2] fid[4] offset[8] count[4]
 pub const IOHDRSZ: u32          = 24;
 /// Room for readdir header
 pub const READDIRHDRSZ: u32     = 24;
