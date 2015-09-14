@@ -13,10 +13,7 @@ pub const P92000: &'static str  = "9P2000";
 /// 9P2000.L version string
 pub const P92000L: &'static str = "9P2000.L";
 
-/// v9fs default port
-pub const V9FS_PORT: u16        = 564;
-
-// 9P Magic Numbers
+// 9P magic numbers
 /// Special tag which `Tversion`/`Rversion` must use as `tag`
 pub const NOTAG: u16            = !0;
 /// Special value which `Tattach` with no auth must use as `afid`
@@ -25,12 +22,18 @@ pub const NOTAG: u16            = !0;
 /// not required, the afid field in the attach message should be set to `NOFID`
 pub const NOFID: u32            = !0;
 pub const NONUNAME: u32         = !0;
+
 /// Ample room for `Twrite`/`Rread` header
 ///
 /// size[4] Tread/Twrite[2] tag[2] fid[4] offset[8] count[4]
 pub const IOHDRSZ: u32          = 24;
+
 /// Room for readdir header
 pub const READDIRHDRSZ: u32     = 24;
+
+/// v9fs default port
+pub const V9FS_PORT: u16        = 564;
+
 
 /// Old 9P2000 protocol types
 ///
@@ -650,7 +653,8 @@ pub enum Fcall {
     Treadlink { fid: u32 },
     Rreadlink { target: String },
     Tgetattr { fid: u32, req_mask: GetattrMask },
-    Rgetattr { valid: GetattrMask, qid: Qid, stat: Stat /* reserved members are handled in En/Decodable traits */ },
+    /// Reserved members are handled in Encodable/Decodable traits
+    Rgetattr { valid: GetattrMask, qid: Qid, stat: Stat },
     Tsetattr { fid: u32, valid: SetattrMask, stat: SetAttr },
     Rsetattr,
     Txattrwalk { fid: u32, newfid: u32, name: String },
@@ -713,52 +717,62 @@ pub enum Fcall {
 }
 
 impl Fcall {
-    /// Get request's fids
-    pub fn fid(&self) -> Vec<u32> {
-        match self {
-            &Fcall::Tstatfs { fid }                         => vec![fid],
-            &Fcall::Tlopen { fid, .. }                      => vec![fid],
-            &Fcall::Tlcreate { fid, .. }                    => vec![fid],
-            &Fcall::Tsymlink { fid, .. }                    => vec![fid],
-            &Fcall::Tmknod { dfid, .. }                     => vec![dfid],
-            &Fcall::Trename { fid, dfid, .. }               => vec![fid, dfid],
-            &Fcall::Treadlink { fid }                       => vec![fid],
-            &Fcall::Tgetattr { fid, .. }                    => vec![fid],
-            &Fcall::Tsetattr { fid, .. }                    => vec![fid],
-            &Fcall::Txattrwalk { fid, .. }                  => vec![fid],
-            &Fcall::Txattrcreate { fid, .. }                => vec![fid],
-            &Fcall::Treaddir { fid, .. }                    => vec![fid],
-            &Fcall::Tfsync { fid, .. }                      => vec![fid],
-            &Fcall::Tlock { fid, .. }                       => vec![fid],
-            &Fcall::Tgetlock { fid, .. }                    => vec![fid],
-            &Fcall::Tlink { dfid, fid, .. }                 => vec![dfid, fid,],
-            &Fcall::Tmkdir { dfid, .. }                     => vec![dfid],
-            &Fcall::Trenameat { olddirfid, newdirfid, .. }  => vec![olddirfid, newdirfid],
-            &Fcall::Tunlinkat { dirfd, .. }                 => vec![dirfd],
-            //&Fcall::Tattach { afid, .. }                    => vec![afid],
-            &Fcall::Twalk { fid, .. }                       => vec![fid],
-            &Fcall::Tread { fid, .. }                       => vec![fid],
-            &Fcall::Twrite { fid, .. }                      => vec![fid],
-            &Fcall::Tclunk { fid, .. }                      => vec![fid],
-            &Fcall::Tremove { fid }                         => vec![fid],
+    /// Get the fids which self contains
+    pub fn fids(&self) -> Vec<u32> {
+        match *self {
+            Fcall::Tstatfs { fid }                          => vec![fid],
+            Fcall::Tlopen { fid, .. }                       => vec![fid],
+            Fcall::Tlcreate { fid, .. }                     => vec![fid],
+            Fcall::Tsymlink { fid, .. }                     => vec![fid],
+            Fcall::Tmknod { dfid, .. }                      => vec![dfid],
+            Fcall::Trename { fid, dfid, .. }                => vec![fid, dfid],
+            Fcall::Treadlink { fid }                        => vec![fid],
+            Fcall::Tgetattr { fid, .. }                     => vec![fid],
+            Fcall::Tsetattr { fid, .. }                     => vec![fid],
+            Fcall::Txattrwalk { fid, .. }                   => vec![fid],
+            Fcall::Txattrcreate { fid, .. }                 => vec![fid],
+            Fcall::Treaddir { fid, .. }                     => vec![fid],
+            Fcall::Tfsync { fid, .. }                       => vec![fid],
+            Fcall::Tlock { fid, .. }                        => vec![fid],
+            Fcall::Tgetlock { fid, .. }                     => vec![fid],
+            Fcall::Tlink { dfid, fid, .. }                  => vec![dfid, fid,],
+            Fcall::Tmkdir { dfid, .. }                      => vec![dfid],
+            Fcall::Trenameat { olddirfid, newdirfid, .. }   => vec![olddirfid, newdirfid],
+            Fcall::Tunlinkat { dirfd, .. }                  => vec![dirfd],
+            Fcall::Tattach { afid, .. } if afid != NOFID    => vec![afid],
+            Fcall::Twalk { fid, .. }                        => vec![fid],
+            Fcall::Tread { fid, .. }                        => vec![fid],
+            Fcall::Twrite { fid, .. }                       => vec![fid],
+            Fcall::Tclunk { fid, .. }                       => vec![fid],
+            Fcall::Tremove { fid }                          => vec![fid],
             _ => Vec::new()
         }
     }
 
-    /// Get request's newfid if available
-    pub fn newfid(&self) -> Vec<u32> {
-        match self {
-            &Fcall::Txattrwalk { newfid, .. }   => vec![newfid],
-            &Fcall::Tauth { afid, .. }          => vec![afid],
-            &Fcall::Tattach { fid, .. }         => vec![fid],
-            &Fcall::Twalk { newfid, .. }        => vec![newfid],
+    /// Get the newfids which self contains
+    pub fn newfids(&self) -> Vec<u32> {
+        match *self {
+            Fcall::Txattrwalk { newfid, .. }    => vec![newfid],
+            Fcall::Tauth { afid, .. }           => vec![afid],
+            Fcall::Tattach { fid, .. }          => vec![fid],
+            Fcall::Twalk { newfid, .. }         => vec![newfid],
             _ => Vec::new()
         }
     }
 
-    pub fn qid(&self) -> Option<Qid> {
-        match self {
-            _ => None
+    /// Get the qids which self contains
+    pub fn qids(&self) -> Vec<Qid> {
+        match *self {
+            Fcall::Rlopen { qid, .. }      => vec![qid],
+            Fcall::Rlcreate { qid, .. }    => vec![qid],
+            Fcall::Rsymlink { qid }        => vec![qid],
+            Fcall::Rmknod { qid}           => vec![qid],
+            Fcall::Rgetattr { qid, .. }    => vec![qid],
+            Fcall::Rmkdir { qid }          => vec![qid],
+            Fcall::Rauth { aqid }          => vec![aqid],
+            Fcall::Rattach { qid }         => vec![qid],
+            Fcall::Rwalk { ref wqids }     => wqids.clone(),
+            _ => Vec::new()
         }
     }
 }

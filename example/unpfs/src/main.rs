@@ -1,6 +1,7 @@
 
 extern crate nix;
 extern crate rs9p;
+extern crate env_logger;
 
 use std::fs;
 use std::ffi::OsStr;
@@ -122,7 +123,7 @@ impl Filesystem for Unpfs {
             let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
             let omode = nix::sys::stat::Mode::from_bits_truncate(0);
             let fd = try!(nix::fcntl::open(&fid.aux().realpath, oflags, omode));
-            fid.aux().file = Some(unsafe { fs::File::from_raw_fd(fd) });
+            fid.aux_mut().file = Some(unsafe { fs::File::from_raw_fd(fd) });
         }
 
         Ok(Fcall::Rlopen { qid: qid, iounit: 0 })
@@ -135,13 +136,13 @@ impl Filesystem for Unpfs {
         let fd = try!(nix::fcntl::open(&path, oflags, omode));
 
         fid.aux = Some(UnpfsFid::new(&path));
-        fid.aux().file = Some(unsafe { fs::File::from_raw_fd(fd) });
+        fid.aux_mut().file = Some(unsafe { fs::File::from_raw_fd(fd) });
 
         Ok(Fcall::Rlcreate { qid: try!(get_qid(&path)), iounit: 0 })
     }
 
     fn rread(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
-        let file = fid.aux().file.as_mut().unwrap();
+        let file = fid.aux_mut().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
 
         let mut buf = create_buffer(count as usize);
@@ -152,7 +153,7 @@ impl Filesystem for Unpfs {
     }
 
     fn rwrite(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, data: &Data) -> Result<Fcall> {
-        let file = fid.aux().file.as_mut().unwrap();
+        let file = fid.aux_mut().file.as_mut().unwrap();
         try!(file.seek(SeekFrom::Start(offset)));
         Ok(Fcall::Rwrite { count: try!(file.write(&data.0)) as u32 })
     }
@@ -180,7 +181,7 @@ impl Filesystem for Unpfs {
     }
 
     fn rfsync(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        try!(fid.aux().file.as_mut().unwrap().sync_all());
+        try!(fid.aux_mut().file.as_mut().unwrap().sync_all());
         Ok(Fcall::Rfsync)
     }
 
@@ -212,6 +213,7 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
 }
 
 fn main() {
+    env_logger::init().unwrap();
     let args = std::env::args().collect();
     let exit_code = match unpfs_main(args) {
         Ok(code) => code,

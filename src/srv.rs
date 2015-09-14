@@ -9,7 +9,6 @@ extern crate libc;
 extern crate byteorder;
 
 use std::{thread, process};
-use std::ops::DerefMut;
 use std::net::TcpListener;
 use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
@@ -25,18 +24,25 @@ use utils::{self, Result};
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Fid<T> {
     /// Raw client side fid
-    pub fid: u32,
+    fid: u32,
     /// `Filesystem::Fid` associated with this fid.
     /// Changing this value affects the continuous callbacks.
     pub aux: Option<T>,
 }
 
 impl<T> Fid<T> {
+    /// Get the raw fid
+    pub fn fid(&self) -> u32 { self.fid }
     /// Unwrap and return a reference to the aux
     ///
     /// # Panics
     /// Calling this method on an aux which is None will cause a panic
-    pub fn aux(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
+    pub fn aux(&self) -> &T { self.aux.as_ref().unwrap() }
+    /// Unwrap and return a mutable reference to the aux
+    ///
+    /// # Panics
+    /// Calling this method on an aux which is None will cause a panic
+    pub fn aux_mut(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
 }
 
 /// Filesystem server implementation
@@ -147,6 +153,8 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
     fn dispatch(&mut self) -> Result<()> {
         loop {
             let msg = try!(serialize::read_msg(&mut self.stream));
+
+            debug!("\t→ {:?}", msg);
             let (fcall, tag) = try!(dispatch_once(
                 msg,
                 &mut self.fs,
@@ -179,9 +187,11 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
     fn dispatch(&mut self) -> Result<()> {
         loop {
             let msg = try!(serialize::read_msg(&mut self.stream));
+
+            debug!("\t→ {:?}", msg);
             let (fcall, tag) = try!(dispatch_once(
                 msg,
-                self.fs.lock().unwrap().deref_mut(),
+                &mut *self.fs.lock().unwrap(),
                 &mut self.fids
             ));
 
@@ -191,56 +201,61 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
 }
 
 fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut HashMap<u32, Fid<FsFid>>) -> Result<(Fcall, u16)> {
-    // Take all fids associated with the fids which the request contains
-    let mut fids: Vec<_> = msg.body.fid().iter().map(|f| fsfids.remove(&f).unwrap()).collect();
-    let mut newfids: Vec<_> = msg.body.newfid().iter().map(|f| Fid { fid: *f, aux: None }).collect();
+    use Fcall::*;
+
+    let mut fids = Vec::new();
+    for fid in msg.body.fids().iter().map(|f| fsfids.remove(&f).ok_or(f)) {
+        match fid {
+            Ok(fid) => fids.push(fid),
+            Err(rawfid) => {
+                error!("No Fid associated with: {}", rawfid);
+                return res!(io_err!(NotFound, "No associated Fid"));
+            }
+        }
+    }
+    let mut newfids: Vec<_> = msg.body.newfids().iter().map(|f| Fid { fid: *f, aux: None }).collect();
 
     let response = match msg.body {
-        Fcall::Tstatfs { fid: _ }                                                       => { fs.rstatfs(&mut fids[0]) },
-        Fcall::Tlopen { fid: _, ref flags }                                             => { fs.rlopen(&mut fids[0], *flags) },
-        Fcall::Tlcreate { fid: _, ref name, ref flags, ref mode, ref gid }              => { fs.rlcreate(&mut fids[0], name, *flags, *mode, *gid) },
-        Fcall::Tsymlink { fid: _, ref name, ref symtgt, ref gid }                       => { fs.rsymlink(&mut fids[0], name, symtgt, *gid) },
-        Fcall::Tmknod { dfid: _, ref name, ref mode, ref major, ref minor, ref gid }    => { fs.rmknod(&mut fids[0], name, *mode, *major, *minor, *gid) },
-        Fcall::Trename { fid: _, dfid: _, ref name }                                    => {
+        Tstatfs { fid: _ }                                                  => { fs.rstatfs(&mut fids[0]) },
+        Tlopen { fid: _, ref flags }                                        => { fs.rlopen(&mut fids[0], *flags) },
+        Tlcreate { fid: _, ref name, ref flags, ref mode, ref gid }         => { fs.rlcreate(&mut fids[0], name, *flags, *mode, *gid) },
+        Tsymlink { fid: _, ref name, ref symtgt, ref gid }                  => { fs.rsymlink(&mut fids[0], name, symtgt, *gid) },
+        Tmknod { ref name, ref mode, ref major, ref minor, ref gid, .. }    => { fs.rmknod(&mut fids[0], name, *mode, *major, *minor, *gid) },
+        Trename { fid: _, dfid: _, ref name }                               => {
             let (fid, dfid) = fids.split_at_mut(1);
             fs.rrename(&mut fid[0], &mut dfid[0], name)
         },
-        Fcall::Treadlink { fid: _ }                                                     => { fs.rreadlink(&mut fids[0]) },
-        Fcall::Tgetattr { fid: _, ref req_mask }                                        => { fs.rgetattr(&mut fids[0], *req_mask) },
-        Fcall::Tsetattr { fid: _, ref valid, ref stat }                                 => { fs.rsetattr(&mut fids[0], *valid, stat) },
-        Fcall::Txattrwalk { fid: _, newfid: _, ref name }                               => { fs.rxattrwalk(&mut fids[0], &mut newfids[0], name) },
-        Fcall::Txattrcreate { fid: _, ref name, ref attr_size, ref flags }              => { fs.rxattrcreate(&mut fids[0], name, *attr_size, *flags) },
-        Fcall::Treaddir { fid: _, ref offset, ref count }                               => { fs.rreaddir(&mut fids[0], *offset, *count) },
-        Fcall::Tfsync { fid: _ }                                                        => { fs.rfsync(&mut fids[0]) },
-        Fcall::Tlock { fid: _, ref flock }                                              => { fs.rlock(&mut fids[0], flock) },
-        Fcall::Tgetlock { fid: _, ref flock }                                           => { fs.rgetlock(&mut fids[0], flock) },
-        Fcall::Tlink { dfid: _, fid: _, ref name }                                      => {
+        Treadlink { fid: _ }                                                => { fs.rreadlink(&mut fids[0]) },
+        Tgetattr { fid: _, ref req_mask }                                   => { fs.rgetattr(&mut fids[0], *req_mask) },
+        Tsetattr { fid: _, ref valid, ref stat }                            => { fs.rsetattr(&mut fids[0], *valid, stat) },
+        Txattrwalk { fid: _, newfid: _, ref name }                          => { fs.rxattrwalk(&mut fids[0], &mut newfids[0], name) },
+        Txattrcreate { fid: _, ref name, ref attr_size, ref flags }         => { fs.rxattrcreate(&mut fids[0], name, *attr_size, *flags) },
+        Treaddir { fid: _, ref offset, ref count }                          => { fs.rreaddir(&mut fids[0], *offset, *count) },
+        Tfsync { fid: _ }                                                   => { fs.rfsync(&mut fids[0]) },
+        Tlock { fid: _, ref flock }                                         => { fs.rlock(&mut fids[0], flock) },
+        Tgetlock { fid: _, ref flock }                                      => { fs.rgetlock(&mut fids[0], flock) },
+        Tlink { dfid: _, fid: _, ref name }                                 => {
             let (dfid, fid) = fids.split_at_mut(1);
             fs.rlink(&mut dfid[0], &mut fid[0], name)
         },
-        Fcall::Tmkdir { dfid: _, ref name, ref mode, ref gid }                          => { fs.rmkdir(&mut fids[0], name, *mode, *gid) },
-        Fcall::Trenameat { olddirfid: _, ref oldname, newdirfid: _, ref newname }       => {
+        Tmkdir { dfid: _, ref name, ref mode, ref gid }                     => { fs.rmkdir(&mut fids[0], name, *mode, *gid) },
+        Trenameat { olddirfid: _, ref oldname, newdirfid: _, ref newname }  => {
             let (old, new) = fids.split_at_mut(1);
             fs.rrenameat(&mut old[0], oldname, &mut new[0], newname)
         },
-        Fcall::Tunlinkat { dirfd: _, ref name, ref flags }                              => { fs.runlinkat(&mut fids[0], name, *flags) },
-
-        // 9P2000.u
-        Fcall::Tauth { afid: _, ref uname, ref aname, ref n_uname }                     => { fs.rauth(&mut newfids[0], uname, aname, *n_uname) },
-        Fcall::Tattach { fid: _, afid: _, ref uname, ref aname, ref n_uname }           => { fs.rattach(&mut newfids[0], None, uname, aname, *n_uname) },
-
-        // 9P2000
-        Fcall::Tversion { ref msize, ref version }                                      => { fs.rversion(*msize, version) },
-        Fcall::Tflush { oldtag: _ }                                                     => { fs.rflush(None) },
-        Fcall::Twalk { fid: _, newfid: _, ref wnames }                                  => { fs.rwalk(&mut fids[0], &mut newfids[0], wnames) },
-        Fcall::Tread { fid: _, ref offset, ref count }                                  => { fs.rread(&mut fids[0], *offset, *count) },
-        Fcall::Twrite { fid: _, ref offset, ref data }                                  => { fs.rwrite(&mut fids[0], *offset, data) },
-        Fcall::Tclunk { fid: _ }    /* Drop the fid which the request contains */       => { fs.rclunk(&mut fids[0]).map_err(|e| { fids.clear(); e }) },
-        Fcall::Tremove { fid: _ }                                                       => { fs.rremove(&mut fids[0]) },
-        _                                                                               => return res!(io_err!(Other, "Invalid 9P message received")),
+        Tunlinkat { dirfd: _, ref name, ref flags }                         => { fs.runlinkat(&mut fids[0], name, *flags) },
+        Tauth { afid: _, ref uname, ref aname, ref n_uname }                => { fs.rauth(&mut newfids[0], uname, aname, *n_uname) },
+        Tattach { fid: _, afid: _, ref uname, ref aname, ref n_uname }      => { fs.rattach(&mut newfids[0], None, uname, aname, *n_uname) },
+        Tversion { ref msize, ref version }                                 => { fs.rversion(*msize, version) },
+        Tflush { oldtag: _ }                                                => { fs.rflush(None) },
+        Twalk { fid: _, newfid: _, ref wnames }                             => { fs.rwalk(&mut fids[0], &mut newfids[0], wnames) },
+        Tread { fid: _, ref offset, ref count }                             => { fs.rread(&mut fids[0], *offset, *count) },
+        Twrite { fid: _, ref offset, ref data }                             => { fs.rwrite(&mut fids[0], *offset, data) },
+        Tclunk { fid: _ }   /* Drop the fid which the request contains */   => { fs.rclunk(&mut fids[0]).map(|e| { fids.clear(); e }) },
+        Tremove { fid: _ }                                                  => { fs.rremove(&mut fids[0]) },
+        _                                                                   => return res!(io_err!(Other, "Invalid 9P message received")),
     }.unwrap_or_else(|e| Fcall::Rlerror { ecode: e.errno() as u32 });
 
-    // Restore the fids taken
     for f in fids { fsfids.insert(f.fid, f); }
     for f in newfids { fsfids.insert(f.fid, f); }
 
@@ -267,6 +282,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 
     loop {
         let (stream, remote) = try!(listener.accept());
+
         match try!(nix::unistd::fork()) {
             nix::unistd::Fork::Parent(_) => {},
             nix::unistd::Fork::Child => {
@@ -301,14 +317,14 @@ pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) ->
     loop {
         let (stream, remote) = try!(listener.accept());
         let (fs, thread_name) = (arc_fs.clone(), format!("{}", remote));
+
         let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
             info!("ServerThread={:?} started", thread_name);
-
-            try!(utils::setup_tcp_stream(&stream));
-            let result = try!(SpawnServerInstance::new(fs, stream)).dispatch();
-
+            let result = {|| {
+                try!(utils::setup_tcp_stream(&stream));
+                try!(SpawnServerInstance::new(fs, stream)).dispatch()
+            }}();
             info!("ServerThread={:?} finished: {:?}", thread_name, result);
-            result
         });
     }
 }

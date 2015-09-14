@@ -10,6 +10,7 @@ name = "unpfs"
 [dependencies]
 libc = "*"
 nix = "*"
+env_logger = "*"
 
 [dependencies.rust-9p]
 path = "../../"

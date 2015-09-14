@@ -24,7 +24,6 @@ macro_rules! res {
     ($err:expr) => { Err(From::from($err)) }
 }
 
-// return: (proto, addr:port)
 pub fn parse_proto(arg: &str) -> ::std::result::Result<(&str, String), ()> {
     let mut split = arg.split("!");
     let proto = try!(split.nth(0).ok_or(()));
@@ -48,6 +47,8 @@ pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, body: Fcall, tag: u16) ->
 
     let msg = Msg { tag: tag, body: body };
     try!(serialize::write_msg(stream, &msg));
+
+    debug!("\t← {:?}", msg);
 
     Ok(msg_type)
 }
