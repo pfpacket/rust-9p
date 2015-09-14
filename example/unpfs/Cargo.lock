@@ -43,7 +43,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "comm"
 version = "0.0.1"
-source = "git+https://github.com/mahkoh/comm#5b1f2f89d893152984264f907b846cc10743c0cb"
+source = "git+https://github.com/mahkoh/comm#a7b96032d56678c9923338345d2c47e8193c83c4"
 
 [[package]]
 name = "enum_primitive"
