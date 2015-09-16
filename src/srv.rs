@@ -161,7 +161,7 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
                 &mut self.fids)
             );
 
-            try!(utils::respond(&mut self.stream, fcall, tag));
+            try!(utils::respond(&mut self.stream, tag, fcall));
         }
     }
 }
@@ -195,7 +195,7 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
                 &mut self.fids
             ));
 
-            try!(utils::respond(&mut self.stream, fcall, tag));
+            try!(utils::respond(&mut self.stream, tag, fcall));
         }
     }
 }
@@ -267,8 +267,8 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
 /// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
-        Err(io_err!(InvalidInput, "Invalid protocol or address"))
+    let (proto, sockaddr) = try!(utils::parse_proto(addr).ok_or(
+        io_err!(InvalidInput, "Invalid protocol or address")
     ));
 
     if proto != "tcp" {
@@ -303,8 +303,8 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
-        Err(io_err!(InvalidInput, "Invalid protocol or address"))
+    let (proto, sockaddr) = try!(utils::parse_proto(addr).ok_or(
+        io_err!(InvalidInput, "Invalid protocol or address")
     ));
 
     if proto != "tcp" {

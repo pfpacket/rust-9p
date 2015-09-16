@@ -130,44 +130,37 @@ impl<Fs: Filesystem + 'static> MtServerInstance<Fs> {
 
     fn dispatch(&self) -> Result<()> {
         let mut threads = Vec::new();
-        let (tx, rx) = comm::spmc::unbounded::new();
+        let (tx, rx) = unsafe { comm::spmc::bounded_fast::new(4096) };
 
-        {   // Message queueing
-            let mut stream = try!(self.stream.try_clone());
-            let thread = thread::spawn(move || { loop {
-                let _ = serialize::read_msg(&mut stream)
-                    .map(|msg| tx.send(msg).map_err(|e| error!("queuer: {:?}", e)))
-                    .map_err(|e| warn!("queuer: {:?}", e));
-            }});
-            threads.push(thread);
-        }
+        // Message queueing
+        let mut stream = try!(self.stream.try_clone());
+        let thread = thread::spawn(move || { loop {
+            let _ = try!( serialize::read_msg(&mut stream)
+                .map(|msg| tx.send_sync(msg).map_err(|e| error!("queuer: {:?}", e)))
+                .map_err(|e| { warn!("queuer: {:?}", e); e }) );
+        }});
+        threads.push(thread);
 
         // Message dispatching
-        for _ in 0..10 {
+        for _ in 0..5 {
             let (fsfids, fs) = (self.fids.clone(), self.fs.clone());
             let (rx, mut stream) = (rx.clone(), try!(self.stream.try_clone()));
 
-            let thread = thread::spawn(move || { loop {
-                match rx.recv_sync() {
-                    Ok(msg) => {
-                        debug!("\t→ {:?}", msg);
-
-                        let (fcall, tag) = mt_dispatch_once(msg, &*fs, &fsfids).unwrap();
-                        if let Err(e) = utils::respond(&mut stream, fcall, tag) {
-                            error!("dispatcher: {:?}", e);
-                        }
-                    },
-                    Err(e) => { warn!("dispatcher: {:?}", e); break; }
-                }
+            let thread = thread::spawn(move || -> Result<()> { loop {
+                try!(rx.recv_sync().map_err(|e| {
+                    warn!("dispatcher: {:?}", e);
+                    error::Error::Io(io_err!(Other, format!("{:?}", e)))
+                }).and_then(|msg| {
+                    debug!("\t→ {:?}", msg);
+                    let (fcall, tag) = try!(mt_dispatch_once(msg, &*fs, &fsfids));
+                    utils::respond(&mut stream, tag, fcall)
+                        .map_err(|e| { error!("dispatcher: {:?}", e); e })
+                }));
             }});
             threads.push(thread);
         }
 
-        for thread in threads {
-            let _ = thread.join();
-        }
-
-        Ok(())
+        threads.into_iter().all(|th| { let _ = th.join(); true }); Ok(())
     }
 }
 
@@ -231,8 +224,8 @@ fn mt_dispatch_once<FsFid>(msg: Msg, fs: &Filesystem<Fid=FsFid>, fsfids: &RwLock
 /// The each thread will spawn a new message queueing thread
 /// and some message dispatching threads.
 pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(utils::parse_proto(addr).or(
-        Err(io_err!(InvalidInput, "Invalid protocol or address"))
+    let (proto, sockaddr) = try!(utils::parse_proto(addr).ok_or(
+        io_err!(InvalidInput, "Invalid protocol or address")
     ));
 
     if proto != "tcp" {
@@ -248,11 +241,11 @@ pub fn srv_mt<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Re
 
         let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
             info!("ServerThread={:?} started", thread_name);
-            let server = || {
+            let result = {|| {
                 try!(utils::setup_tcp_stream(&stream));
                 try!(MtServerInstance::new(fs, stream)).dispatch()
-            };
-            info!("ServerThread={:?} finished: {:?}", thread_name, server());
+            }}();
+            info!("ServerThread={:?} finished: {:?}", thread_name, result);
         });
     }
 }

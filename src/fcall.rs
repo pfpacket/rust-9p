@@ -21,6 +21,7 @@ pub const NOTAG: u16            = !0;
 /// If the client does not wish to authenticate the connection, or knows that authentication is
 /// not required, the afid field in the attach message should be set to `NOFID`
 pub const NOFID: u32            = !0;
+/// Special uid which `Tauth`/`Tattach` use as `n_uname` to indicate no uid is specified
 pub const NONUNAME: u32         = !0;
 
 /// Ample room for `Twrite`/`Rread` header
@@ -323,7 +324,7 @@ pub struct Time {
 
 /// File attributes corresponding to `struct stat` of Linux.
 ///
-/// Stat can be constructed from std::fs::Metadata via From trait
+/// Stat can be constructed from `std::fs::Metadata` via From trait
 ///
 /// # Protocol
 /// 9P2000.L
@@ -378,7 +379,7 @@ impl<'a> From<&'a fs::Metadata> for Stat {
     }
 }
 
-/// Subset of Stat used for Tsetattr
+/// Subset of `Stat` used for `Tsetattr`
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SetAttr {
     pub mode: u32,
@@ -434,7 +435,7 @@ impl DirEntryData {
     }
 }
 
-/// Data type used in Rread and Twrite
+/// Data type used in `Rread` and `Twrite`
 ///
 /// # Protocol
 /// 9P2000/9P2000.L

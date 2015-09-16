@@ -24,12 +24,15 @@ macro_rules! res {
     ($err:expr) => { Err(From::from($err)) }
 }
 
-pub fn parse_proto(arg: &str) -> ::std::result::Result<(&str, String), ()> {
+macro_rules! otry {
+    ($opt:expr) => { match $opt { Some(val) => val, None => return None, } }
+}
+
+pub fn parse_proto(arg: &str) -> Option<(&str, String)>{
     let mut split = arg.split("!");
-    let proto = try!(split.nth(0).ok_or(()));
-    let addr  = try!(split.nth(0).ok_or(()));
-    let port  = try!(split.nth(0).ok_or(()));
-    Ok((proto, addr.to_owned() + ":" + port))
+    let (proto, addr, port) =
+        (otry!(split.nth(0)), otry!(split.nth(0)), otry!(split.nth(0)));
+    Some((proto, addr.to_owned() + ":" + port))
 }
 
 // See also: diod/libdiod/diod_sock.c
@@ -39,9 +42,8 @@ pub fn setup_tcp_stream(stream: &TcpStream) -> ::std::io::Result<()> {
     TcpStreamExt::set_nodelay(stream, true)
 }
 
-pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, body: Fcall, tag: u16) -> Result<MsgType> {
-    let msg_type = MsgType::from(&body);
-    if msg_type.is_t() {
+pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, tag: u16, body: Fcall) -> Result<()> {
+    if MsgType::from(&body).is_t() {
         return res!(io_err!(Other, "Invalid 9P message in this context"));
     };
 
@@ -50,5 +52,5 @@ pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, body: Fcall, tag: u16) ->
 
     debug!("\t← {:?}", msg);
 
-    Ok(msg_type)
+    Ok(())
 }
