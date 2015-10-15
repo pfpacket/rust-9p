@@ -6,7 +6,7 @@ extern crate env_logger;
 use std::fs;
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::io::{self, Seek, SeekFrom, Read, Write};
+use std::io::{Seek, SeekFrom, Read, Write};
 use std::os::unix::prelude::*;
 use rs9p::*;
 use rs9p::srv::{Fid, Filesystem};
@@ -198,13 +198,9 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
     }
 
     let mountpoint = &args[2];
-    try!(fs::metadata(mountpoint).and_then(|m| {
-        if m.is_dir() {
-            Ok(())
-        } else {
-            io_error!(Other, "mount point must be a directory")
-        }
-    }));
+    if !try!(fs::metadata(mountpoint)).is_dir() {
+        return res!(io_err!(Other, "mount point must be a directory"));
+    }
 
     println!("[*] Ready to accept clients: {}", args[1]);
     try!(rs9p::srv_spawn(Unpfs::new(mountpoint), &args[1]));
@@ -217,7 +213,7 @@ fn main() {
     let args = std::env::args().collect();
     let exit_code = match unpfs_main(args) {
         Ok(code) => code,
-        Err(e) => { println!("Error: {:?}", e); -1 }
+        Err(e) => { println!("Error: {}", e); -1 }
     };
     std::process::exit(exit_code);
 }
