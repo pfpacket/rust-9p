@@ -8,15 +8,15 @@ use std::path::Path;
 use std::os::unix::prelude::*;
 use rs9p::fcall::*;
 
-#[macro_export] macro_rules! io_err {
+macro_rules! io_err {
     ($kind:ident, $msg:expr) => { ::std::io::Error::new(::std::io::ErrorKind::$kind, $msg) }
 }
 
-#[macro_export] macro_rules! res {
+macro_rules! res {
     ($err:expr) => { Err(From::from($err)) }
 }
 
-#[macro_export] macro_rules! errno {
+macro_rules! errno {
     () => { nix::errno::from_i32(nix::errno::errno()) }
 }
 
