@@ -276,7 +276,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     }
 
     // Do not wait for child processes
-    unsafe { libc::funcs::posix01::signal::signal(nix::sys::signal::SIGCHLD, libc::SIG_IGN); }
+    unsafe { libc::signal(libc::SIGCHLD, libc::SIG_IGN); }
 
     let listener = try!(TcpListener::bind(&sockaddr[..]));
 
