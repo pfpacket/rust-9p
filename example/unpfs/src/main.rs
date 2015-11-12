@@ -188,6 +188,10 @@ impl Filesystem for Unpfs {
     fn rclunk(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
         Ok(Fcall::Rclunk)
     }
+
+    fn rstatfs(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Ok(Fcall::Rstatfs { statfs: try!(statvfs(&fid.aux().realpath)) })
+    }
 }
 
 fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {

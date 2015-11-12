@@ -35,6 +35,16 @@ pub fn chown<T: AsRef<Path> + ?Sized>(path: &T, uid: Option<u32>, gid: Option<u3
     }
 }
 
+pub fn statvfs<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<rs9p::Statfs> {
+    unsafe {
+        let mut buf = ::std::mem::uninitialized();
+        let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
+        match libc::statvfs(ptr as *const i8, &mut buf as *mut libc::statvfs) {
+            0 => Ok(From::from(buf)), _ => Err(rs9p::Error::No(errno!()))
+        }
+    }
+}
+
 pub fn get_qid<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<Qid> {
     Ok(qid_from_attr( &try!(fs::symlink_metadata(path.as_ref())) ))
 }

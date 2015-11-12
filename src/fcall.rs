@@ -4,9 +4,11 @@
 //! # Supported protocol
 //! 9P2000.L
 
-use std::mem::{size_of, size_of_val};
+extern crate libc;
+
 use std::fs;
 use std::os::unix::fs::MetadataExt;
+use std::mem::{size_of, size_of_val};
 
 /// 9P2000 version string
 pub const P92000: &'static str  = "9P2000";
@@ -310,6 +312,22 @@ pub struct Statfs {
     pub fsid: u64,
     /// Maximum length of filenames
     pub namelen: u32,
+}
+
+impl From<libc::statvfs> for Statfs {
+    fn from(buf: libc::statvfs) -> Statfs {
+        Statfs {
+            typ: 0,
+            bsize: buf.f_bsize as u32,
+            blocks: buf.f_blocks,
+            bfree: buf.f_bfree,
+            bavail: buf.f_bavail,
+            files: buf.f_files,
+            ffree: buf.f_ffree,
+            fsid: buf.f_fsid,
+            namelen: buf.f_namemax as u32,
+        }
+    }
 }
 
 /// Time struct

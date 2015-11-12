@@ -199,6 +199,10 @@ impl Filesystem for Unpfs {
     fn rclunk(&self, _: Arc<Fid<Self::Fid>>) -> Result<Fcall> {
         Ok(Fcall::Rclunk)
     }
+
+    fn rstatfs(&self, fid: Arc<Fid<Self::Fid>>) -> Result<Fcall> {
+        Ok(Fcall::Rstatfs { statfs: try!(statvfs(&rlock_get!(fid.aux).realpath)) })
+    }
 }
 
 fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
