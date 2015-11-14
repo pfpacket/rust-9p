@@ -190,7 +190,9 @@ impl Filesystem for Unpfs {
     }
 
     fn rstatfs(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        Ok(Fcall::Rstatfs { statfs: try!(statvfs(&fid.aux().realpath)) })
+        let mut buf = unsafe { ::std::mem::uninitialized() };
+        try!(nix::sys::statvfs::statvfs(&fid.aux().realpath, &mut buf));
+        Ok(Fcall::Rstatfs { statfs: From::from(buf) })
     }
 }
 

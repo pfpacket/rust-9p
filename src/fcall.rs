@@ -4,7 +4,7 @@
 //! # Supported protocol
 //! 9P2000.L
 
-extern crate libc;
+extern crate nix;
 
 use std::fs;
 use std::os::unix::fs::MetadataExt;
@@ -314,8 +314,8 @@ pub struct Statfs {
     pub namelen: u32,
 }
 
-impl From<libc::statvfs> for Statfs {
-    fn from(buf: libc::statvfs) -> Statfs {
+impl From<nix::sys::statvfs::vfs::Statvfs> for Statfs {
+    fn from(buf: nix::sys::statvfs::vfs::Statvfs) -> Statfs {
         Statfs {
             typ: 0,
             bsize: buf.f_bsize as u32,

@@ -8,17 +8,10 @@ use std::path::Path;
 use std::os::unix::prelude::*;
 use rs9p::fcall::*;
 
-macro_rules! io_err {
-    ($kind:ident, $msg:expr) => { ::std::io::Error::new(::std::io::ErrorKind::$kind, $msg) }
-}
-
-macro_rules! res {
-    ($err:expr) => { Err(From::from($err)) }
-}
-
-macro_rules! errno {
-    () => { nix::errno::from_i32(nix::errno::errno()) }
-}
+macro_rules! res { ($err:expr) => { Err(From::from($err)) } }
+macro_rules! io_err { ($kind:ident, $msg:expr) => {
+    ::std::io::Error::new(::std::io::ErrorKind::$kind, $msg)
+}}
 
 pub fn create_buffer(size: usize) -> Vec<u8> {
     let mut buffer = Vec::with_capacity(size);
@@ -28,19 +21,11 @@ pub fn create_buffer(size: usize) -> Vec<u8> {
 
 pub fn chown<T: AsRef<Path> + ?Sized>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {
     unsafe {
+        let uid = uid.unwrap_or(u32::max_value());
+        let gid = gid.unwrap_or(u32::max_value());
         let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
-        match libc::chown(ptr as *const i8, uid.unwrap_or(u32::max_value()), gid.unwrap_or(u32::max_value())) {
-            0 => Ok(()), _ => Err(rs9p::Error::No(errno!()))
-        }
-    }
-}
-
-pub fn statvfs<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<rs9p::Statfs> {
-    unsafe {
-        let mut buf = ::std::mem::uninitialized();
-        let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
-        match libc::statvfs(ptr as *const i8, &mut buf as *mut libc::statvfs) {
-            0 => Ok(From::from(buf)), _ => Err(rs9p::Error::No(errno!()))
+        match libc::chown(ptr as *const i8, uid, gid) {
+            0 => Ok(()), _ => Err(rs9p::Error::No(nix::errno::Errno::last()))
         }
     }
 }
