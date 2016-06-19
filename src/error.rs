@@ -7,7 +7,6 @@
 //! Since 9P2000.L, errors are represented as error numbers (errno).
 
 extern crate nix;
-extern crate byteorder;
 
 use std::{io, fmt};
 use std::io::ErrorKind::*;
@@ -102,15 +101,6 @@ impl From<nix::errno::Errno> for Error {
 
 impl From<nix::Error> for Error {
     fn from(e: nix::Error) -> Self { Error::No(e.errno()) }
-}
-
-impl From<byteorder::Error> for Error {
-    fn from(e: byteorder::Error) -> Self {
-        match e {
-            byteorder::Error::UnexpectedEOF => Error::No(ECONNRESET),
-            byteorder::Error::Io(e) => Error::Io(e)
-        }
-    }
 }
 
 /// Errno, error numbers

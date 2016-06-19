@@ -7,9 +7,9 @@ extern crate byteorder;
 use fcall::*;
 use std::mem;
 use std::ops::{Shl, Shr};
-use std::io::{self, Read, Write, Cursor};
+use std::io::{Read, Cursor, Result};
 use self::num::FromPrimitive;
-use self::byteorder::{Error, Result, LittleEndian, ReadBytesExt, WriteBytesExt};
+use self::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 macro_rules! decode {
     ($decoder:expr) => { try!(Decodable::decode(&mut $decoder)) }
@@ -29,24 +29,11 @@ fn create_buffer(size: usize) -> Vec<u8> {
 
 fn read_exact<R: Read + ?Sized>(r: &mut R, size: usize) -> Result<Vec<u8>> {
     let mut buf = create_buffer(size);
-    read_full(r, &mut buf[..]).and(Ok(buf))
-}
-
-fn read_full<R: Read + ?Sized>(r: &mut R, buf: &mut [u8]) -> Result<()> {
-    let mut nread = 0;
-    while nread < buf.len() {
-        match r.read(&mut buf[nread..]) {
-            Ok(0) => return Err(Error::UnexpectedEOF),
-            Ok(n) => nread += n,
-            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {},
-            Err(e) => return Err(From::from(e))
-        }
-    }
-    Ok(())
+    r.read_exact(&mut buf[..]).and(Ok(buf))
 }
 
 /// A serializing specific result to overload operators on `Result`
-pub struct SResult<T>(::std::result::Result<T, Error>);
+pub struct SResult<T>(::std::io::Result<T>);
 
 /// A macro to try! `SResult`
 #[macro_export]
@@ -390,7 +377,7 @@ impl Decodable for String {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u16 = try!(Decodable::decode(r));
         let buf = try!(read_exact(r, len as usize));
-        String::from_utf8(buf).or(res!(bo_err!(Other, "Invalid UTF-8 sequence")))
+        String::from_utf8(buf).or(res!(io_err!(Other, "Invalid UTF-8 sequence")))
     }
 }
 
@@ -602,7 +589,7 @@ impl Decodable for Msg {
             Some(Rclunk)        => Fcall::Rclunk,
             Some(Tremove)       => Fcall::Tremove { fid: decode!(buf) },
             Some(Rremove)       => Fcall::Rremove,
-            Some(Tlerror) | None => return res!(bo_err!(Other, "Invalid message type"))
+            Some(Tlerror) | None => return res!(io_err!(Other, "Invalid message type"))
         };
 
         Ok(Msg { tag: tag, body: body })

@@ -284,8 +284,8 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
         let (stream, remote) = try!(listener.accept());
 
         match try!(nix::unistd::fork()) {
-            nix::unistd::Fork::Parent(_) => {},
-            nix::unistd::Fork::Child => {
+            nix::unistd::ForkResult::Parent { .. } => {},
+            nix::unistd::ForkResult::Child => {
                 info!("ServerProcess={} starts", remote);
 
                 try!(utils::setup_tcp_stream(&stream));

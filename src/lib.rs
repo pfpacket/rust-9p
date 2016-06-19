@@ -20,3 +20,4 @@ pub use error::Error;
 pub use error::errno as errno;
 pub use error::string as errstr;
 pub use fcall::*;
+pub use srv::{srv, srv_spawn};

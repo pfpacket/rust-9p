@@ -134,7 +134,7 @@ pub mod p92000 {
 /// File lock type, Flock.typ
 pub mod ltype {
     bitflags! {
-        flags LockType: u8 {
+        pub flags LockType: u8 {
             const RDLOCK    = 0,
             const WRLOCK    = 1,
             const UNLOCK    = 2,
@@ -146,7 +146,7 @@ pub use self::ltype::LockType;
 /// File lock flags, Flock.flags
 pub mod lflag {
     bitflags! {
-        flags LockFlag: u32 {
+        pub flags LockFlag: u32 {
             #[doc = "Blocking request"]
             const BLOCK     = 1,
             #[doc = "Reserved for future use"]
@@ -159,7 +159,7 @@ pub use self::lflag::LockFlag;
 /// File lock status
 pub mod lstatus {
     bitflags! {
-        flags LockStatus: u8 {
+        pub flags LockStatus: u8 {
             const SUCCESS   = 0,
             const BLOCKED   = 1,
             const ERROR     = 2,
@@ -177,7 +177,7 @@ pub use self::lstatus::LockStatus;
 /// 9P2000/9P2000.L
 pub mod qt {
     bitflags! {
-        flags QidType: u8 {
+        pub flags QidType: u8 {
             #[doc = "Type bit for directories"]
             const DIR       = 0x80,
             #[doc = "Type bit for append only files"]
@@ -222,7 +222,7 @@ pub use self::qt::QidType;
 /// 9P2000.L
 pub mod getattr {
     bitflags! {
-        flags GetattrMask: u64 {
+        pub flags GetattrMask: u64 {
             const MODE          = 0x00000001,
             const NLINK         = 0x00000002,
             const UID           = 0x00000004,
@@ -257,7 +257,7 @@ pub use self::getattr::GetattrMask;
 /// 9P2000.L
 pub mod setattr {
     bitflags! {
-        flags SetattrMask: u32 {
+        pub flags SetattrMask: u32 {
             const MODE      = 0x00000001,
             const UID       = 0x00000002,
             const GID       = 0x00000004,

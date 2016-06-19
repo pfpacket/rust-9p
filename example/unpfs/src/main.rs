@@ -76,10 +76,10 @@ impl Filesystem for Unpfs {
             try!(fs::set_permissions(&fid.aux().realpath, perm));
         }
         if valid.contains(setattr::UID) {
-            try!(chown(&fid.aux().realpath, Some(stat.uid), None));
+            try!(nix::unistd::chown(&fid.aux().realpath, Some(stat.uid), None));
         }
         if valid.contains(setattr::GID) {
-            try!(chown(&fid.aux().realpath, None, Some(stat.gid)));
+            try!(nix::unistd::chown(&fid.aux().realpath, None, Some(stat.gid)));
         }
         if valid.contains(setattr::SIZE) {
             let _ = try!(fs::File::open(&fid.aux().realpath)).set_len(stat.size);
