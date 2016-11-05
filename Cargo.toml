@@ -18,6 +18,3 @@ byteorder = "*"
 bitflags = "*"
 enum_primitive = "*"
 net2 = { version = "*", features = ["nightly"] }
-
-[dependencies.comm]
-git = "https://github.com/mahkoh/comm"

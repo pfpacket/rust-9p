@@ -16,10 +16,6 @@ macro_rules! io_err {
     ($kind:ident, $msg:expr) => { ::std::io::Error::new(::std::io::ErrorKind::$kind, $msg) }
 }
 
-macro_rules! bo_err {
-    ($kind:ident, $msg:expr) => { byteorder::Error::Io(io_err!($kind, $msg)) }
-}
-
 macro_rules! res {
     ($err:expr) => { Err(From::from($err)) }
 }

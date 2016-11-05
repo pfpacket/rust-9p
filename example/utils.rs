@@ -19,17 +19,6 @@ pub fn create_buffer(size: usize) -> Vec<u8> {
     buffer
 }
 
-pub fn chown<T: AsRef<Path> + ?Sized>(path: &T, uid: Option<u32>, gid: Option<u32>) -> rs9p::Result<()> {
-    unsafe {
-        let uid = uid.unwrap_or(u32::max_value());
-        let gid = gid.unwrap_or(u32::max_value());
-        let ptr = path.as_ref().as_os_str().as_bytes().as_ptr();
-        match libc::chown(ptr as *const i8, uid, gid) {
-            0 => Ok(()), _ => Err(rs9p::Error::No(nix::errno::Errno::last()))
-        }
-    }
-}
-
 pub fn get_qid<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<Qid> {
     Ok(qid_from_attr( &try!(fs::symlink_metadata(path.as_ref())) ))
 }
