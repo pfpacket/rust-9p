@@ -1,7 +1,7 @@
 
-//! Define data types and constants used in 9P protocol
+//! 9P protocol data types and constants.
 //!
-//! # Supported protocol
+//! # Protocol
 //! 9P2000.L
 
 extern crate nix;
@@ -40,7 +40,7 @@ pub const V9FS_PORT: u16        = 564;
 
 /// Old 9P2000 protocol types
 ///
-/// The types in this module are not used 9P2000.L
+/// Types in this module are not used 9P2000.L
 pub mod p92000 {
     /// The type of I/O
     ///
@@ -672,7 +672,7 @@ pub enum Fcall {
     Treadlink { fid: u32 },
     Rreadlink { target: String },
     Tgetattr { fid: u32, req_mask: GetattrMask },
-    /// Reserved members are handled in Encodable/Decodable traits
+    /// Reserved members specified in the protocol are handled in Encodable/Decodable traits.
     Rgetattr { valid: GetattrMask, qid: Qid, stat: Stat },
     Tsetattr { fid: u32, valid: SetattrMask, stat: SetAttr },
     Rsetattr,

@@ -1,10 +1,11 @@
 
-//! Define 9P error representations
+//! 9P error representations.
 //!
-//! In 9P2000, errors are represented as strings.
-//! All imported from include/net/9p/error.c of Linux kernel
+//! In 9P2000 errors are represented as strings.
+//! All the error strings in this module are imported from include/net/9p/error.c of Linux kernel.
 //!
-//! Since 9P2000.L, errors are represented as error numbers (errno).
+//! By contrast, in 9P2000.L, errors are represented as numbers (errno).
+//! Using the Linux system errno numbers is the expected behaviour.
 
 extern crate nix;
 
@@ -46,14 +47,14 @@ fn errno_from_ioerror(e: &io::Error) -> nix::errno::Errno {
 /// 9P2000.L
 #[derive(Debug)]
 pub enum Error {
-    /// System error containing an errno
+    /// System error containing an errno.
     No(nix::errno::Errno),
-    /// I/O error
+    /// I/O error.
     Io(io::Error)
 }
 
 impl Error {
-    /// Get an errno representations
+    /// Get an errno representations.
     pub fn errno(&self) -> nix::errno::Errno {
         match *self {
             Error::No(ref e) => e.clone(),
@@ -103,13 +104,16 @@ impl From<nix::Error> for Error {
     fn from(e: nix::Error) -> Self { Error::No(e.errno()) }
 }
 
-/// Errno, error numbers
+/// The system errno definitions.
+///
+/// # Protocol
+/// 9P2000.L
 pub mod errno {
     extern crate nix;
     pub use self::nix::errno::Errno::*;
 }
 
-/// 9P error strings
+/// 9P error strings imported from Linux.
 ///
 /// # Protocol
 /// 9P2000

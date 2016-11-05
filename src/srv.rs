@@ -1,5 +1,5 @@
 
-//! Server side 9P library
+//! Server side 9P library.
 //!
 //! # Protocol
 //! 9P2000.L
@@ -20,10 +20,10 @@ use error;
 use error::errno::*;
 use utils::{self, Result};
 
-/// Represents a fid of clients holding associated `Filesystem::Fid`
+/// Represents a fid of clients holding associated `Filesystem::Fid`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Fid<T> {
-    /// Raw client side fid
+    /// Raw client side fid.
     fid: u32,
     /// `Filesystem::Fid` associated with this fid.
     /// Changing this value affects the continuous callbacks.
@@ -31,26 +31,24 @@ pub struct Fid<T> {
 }
 
 impl<T> Fid<T> {
-    /// Get the raw fid
+    /// Get the raw fid.
     pub fn fid(&self) -> u32 { self.fid }
-    /// Unwrap and return a reference to the aux
+    /// Unwrap and return a reference to the aux.
     ///
     /// # Panics
-    /// Calling this method on an aux which is None will cause a panic
+    /// Calling this method on an aux which is None will cause a panic.
     pub fn aux(&self) -> &T { self.aux.as_ref().unwrap() }
-    /// Unwrap and return a mutable reference to the aux
+    /// Unwrap and return a mutable reference to the aux.
     ///
     /// # Panics
-    /// Calling this method on an aux which is None will cause a panic
+    /// Calling this method on an aux which is None will cause a panic.
     pub fn aux_mut(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
 }
 
-/// Filesystem server implementation
+/// Filesystem server trait.
 ///
-/// Implementors can represent an error condition by
-/// returning an error message string if an operation fails.
-/// It is always recommended to choose the one of the error messages
-/// in `error` module as the returned one.
+/// Implementors can represent an error condition by returning an `Err`.
+/// Otherwise, they must return `Fcall` with the required fields filled.
 ///
 /// The default implementation, returning ENOSYS error, is provided to the all methods
 /// except Rversion.
@@ -62,7 +60,7 @@ impl<T> Fid<T> {
 /// # Protocol
 /// 9P2000.L
 pub trait Filesystem {
-    /// User defined fid type to be associated with a client's fid
+    /// User defined fid type to be associated with a client's fid.
     type Fid;
 
     // 9P2000.L
@@ -262,7 +260,7 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
     Ok((response, msg.tag))
 }
 
-/// Start the 9P filesystem (fork child processes)
+/// Start the 9P filesystem (fork child processes).
 ///
 /// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
@@ -298,7 +296,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     }
 }
 
-/// Start the 9P filesystem (spawning threads)
+/// Start the 9P filesystem (spawning threads).
 ///
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.

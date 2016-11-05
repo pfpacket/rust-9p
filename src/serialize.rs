@@ -1,5 +1,5 @@
 
-//! Serialize/deserialize 9P messages into/from binary
+//! Serialize/deserialize 9P messages into/from binary.
 
 extern crate num;
 extern crate byteorder;
