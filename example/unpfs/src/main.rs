@@ -2,6 +2,7 @@
 extern crate nix;
 extern crate rs9p;
 extern crate env_logger;
+extern crate filetime;
 
 use std::fs;
 use std::ffi::OsStr;
@@ -75,18 +76,23 @@ impl Filesystem for Unpfs {
             let perm = PermissionsExt::from_mode(stat.mode);
             fs::set_permissions(&fid.aux().realpath, perm)?;
         }
-        if valid.contains(setattr::UID) {
-            nix::unistd::chown(&fid.aux().realpath, Some(stat.uid), None)?;
-        }
-        if valid.contains(setattr::GID) {
-            nix::unistd::chown(&fid.aux().realpath, None, Some(stat.gid))?;
+        if valid.intersects(setattr::UID | setattr::GID) {
+            let uid = if valid.contains(setattr::UID) { Some(stat.uid) } else { None };
+            let gid = if valid.contains(setattr::GID) { Some(stat.gid) } else { None };
+            nix::unistd::chown(&fid.aux().realpath, uid, gid)?;
         }
         if valid.contains(setattr::SIZE) {
             let _ = fs::File::open(&fid.aux().realpath)?.set_len(stat.size);
         }
-        if valid.contains(setattr::ATIME) {}
-        if valid.contains(setattr::MTIME) {}
-        if valid.contains(setattr::CTIME) {}
+        if valid.intersects(setattr::ATIME_SET | setattr::MTIME_SET) {
+            let atime = if valid.contains(setattr::ATIME_SET) {
+                filetime::FileTime::from_seconds_since_1970(stat.atime.sec, stat.atime.nsec as u32)
+            } else { filetime::FileTime::zero() };
+            let mtime = if valid.contains(setattr::MTIME_SET) {
+                filetime::FileTime::from_seconds_since_1970(stat.mtime.sec, stat.mtime.nsec as u32)
+            } else { filetime::FileTime::zero() };
+            filetime::set_file_times(&fid.aux().realpath, atime, mtime)?
+        }
         Ok(Fcall::Rsetattr)
     }
 

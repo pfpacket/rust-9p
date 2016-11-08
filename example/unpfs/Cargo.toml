@@ -10,6 +10,7 @@ name = "unpfs"
 [dependencies]
 nix = "*"
 env_logger = "*"
+filetime = "0.1"
 
 [dependencies.rust-9p]
 path = "../../"
@@ -20,4 +21,3 @@ debug = false
 rpath = false
 lto = false
 debug-assertions = false
-codegen-units = 1
