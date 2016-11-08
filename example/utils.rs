@@ -1,6 +1,5 @@
 
 extern crate nix;
-extern crate libc;
 extern crate rs9p;
 
 use std::fs;
