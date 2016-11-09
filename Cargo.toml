@@ -9,7 +9,6 @@ name = "rs9p"
 crate-type = ["rlib"]
 
 [dependencies]
-libc = "*"
 log = "*"
 num = "*"
 nix = "*"

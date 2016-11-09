@@ -5,7 +5,6 @@
 //! 9P2000.L
 
 extern crate nix;
-extern crate libc;
 extern crate byteorder;
 
 use std::{thread, process};
@@ -13,6 +12,7 @@ use std::net::TcpListener;
 use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
+use self::nix::sys::signal::{sigaction, Signal, SigAction, SigHandler, SaFlags, SigSet};
 
 use fcall::*;
 use serialize;
@@ -274,7 +274,9 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     }
 
     // Do not wait for child processes
-    unsafe { libc::signal(libc::SIGCHLD, libc::SIG_IGN); }
+    unsafe {
+        sigaction(Signal::SIGCHLD, &SigAction::new(SigHandler::SigIgn, SaFlags::empty(), SigSet::empty()))?;
+    }
 
     let listener = try!(TcpListener::bind(&sockaddr[..]));
 
