@@ -11,6 +11,7 @@ use std::io::{Seek, SeekFrom, Read, Write};
 use std::os::unix::prelude::*;
 use rs9p::*;
 use rs9p::srv::{Fid, Filesystem};
+use self::filetime::FileTime;
 
 #[macro_use]
 mod utils;
@@ -72,26 +73,26 @@ impl Filesystem for Unpfs {
     }
 
     fn rsetattr(&mut self, fid: &mut Fid<Self::Fid>, valid: SetattrMask, stat: &SetAttr) -> Result<Fcall> {
+        let filepath = &fid.aux().realpath;
         if valid.contains(setattr::MODE) {
-            let perm = PermissionsExt::from_mode(stat.mode);
-            fs::set_permissions(&fid.aux().realpath, perm)?;
+            fs::set_permissions(filepath, PermissionsExt::from_mode(stat.mode))?;
         }
         if valid.intersects(setattr::UID | setattr::GID) {
             let uid = if valid.contains(setattr::UID) { Some(stat.uid) } else { None };
             let gid = if valid.contains(setattr::GID) { Some(stat.gid) } else { None };
-            nix::unistd::chown(&fid.aux().realpath, uid, gid)?;
+            nix::unistd::chown(filepath, uid, gid)?;
         }
         if valid.contains(setattr::SIZE) {
-            let _ = fs::File::open(&fid.aux().realpath)?.set_len(stat.size);
+            let _ = fs::File::open(filepath)?.set_len(stat.size);
         }
         if valid.intersects(setattr::ATIME_SET | setattr::MTIME_SET) {
             let atime = if valid.contains(setattr::ATIME_SET) {
-                filetime::FileTime::from_seconds_since_1970(stat.atime.sec, stat.atime.nsec as u32)
-            } else { filetime::FileTime::zero() };
+                FileTime::from_seconds_since_1970(stat.atime.sec, stat.atime.nsec as u32)
+            } else { FileTime::from_last_access_time(&fs::metadata(filepath)?) };
             let mtime = if valid.contains(setattr::MTIME_SET) {
-                filetime::FileTime::from_seconds_since_1970(stat.mtime.sec, stat.mtime.nsec as u32)
-            } else { filetime::FileTime::zero() };
-            filetime::set_file_times(&fid.aux().realpath, atime, mtime)?
+                FileTime::from_seconds_since_1970(stat.mtime.sec, stat.mtime.nsec as u32)
+            } else { FileTime::from_last_modification_time(&fs::metadata(filepath)?) };
+            filetime::set_file_times(filepath, atime, mtime)?
         }
         Ok(Fcall::Rsetattr)
     }
