@@ -149,7 +149,7 @@ impl Filesystem for Unpfs {
     }
 
     fn rread(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
-        let file = fid.aux_mut().file.as_mut().unwrap();
+        let file = fid.aux_mut().file.as_mut().ok_or(INVALID_FID!())?;
         file.seek(SeekFrom::Start(offset))?;
 
         let mut buf = create_buffer(count as usize);
@@ -160,7 +160,7 @@ impl Filesystem for Unpfs {
     }
 
     fn rwrite(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, data: &Data) -> Result<Fcall> {
-        let file = fid.aux_mut().file.as_mut().unwrap();
+        let file = fid.aux_mut().file.as_mut().ok_or(INVALID_FID!())?;
         file.seek(SeekFrom::Start(offset))?;
         Ok(Fcall::Rwrite { count: file.write(&data.0)? as u32 })
     }
@@ -188,7 +188,7 @@ impl Filesystem for Unpfs {
     }
 
     fn rfsync(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        fid.aux_mut().file.as_mut().unwrap().sync_all()?;
+        fid.aux_mut().file.as_mut().ok_or(INVALID_FID!())?.sync_all()?;
         Ok(Fcall::Rfsync)
     }
 
