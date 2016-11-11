@@ -44,7 +44,7 @@ pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, tag: u16, body: Fcall) ->
     };
 
     let msg = Msg { tag: tag, body: body };
-    try!(serialize::write_msg(stream, &msg));
+    serialize::write_msg(stream, &msg)?;
 
     debug!("\t← {:?}", msg);
 

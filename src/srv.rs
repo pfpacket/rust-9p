@@ -150,16 +150,15 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
 
     fn dispatch(&mut self) -> Result<()> {
         loop {
-            let msg = try!(serialize::read_msg(&mut self.stream));
+            let msg = serialize::read_msg(&mut self.stream)?;
 
             debug!("\t→ {:?}", msg);
-            let (fcall, tag) = try!(dispatch_once(
+            let (fcall, tag) = dispatch_once(
                 msg,
                 &mut self.fs,
-                &mut self.fids)
-            );
+                &mut self.fids)?;
 
-            try!(utils::respond(&mut self.stream, tag, fcall));
+            utils::respond(&mut self.stream, tag, fcall)?;
         }
     }
 }
@@ -184,16 +183,16 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
 
     fn dispatch(&mut self) -> Result<()> {
         loop {
-            let msg = try!(serialize::read_msg(&mut self.stream));
+            let msg = serialize::read_msg(&mut self.stream)?;
 
             debug!("\t→ {:?}", msg);
-            let (fcall, tag) = try!(dispatch_once(
+            let (fcall, tag) = dispatch_once(
                 msg,
                 &mut *self.fs.lock().unwrap(),
                 &mut self.fids
-            ));
+            )?;
 
-            try!(utils::respond(&mut self.stream, tag, fcall));
+            utils::respond(&mut self.stream, tag, fcall)?;
         }
     }
 }
@@ -265,9 +264,9 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
 /// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(utils::parse_proto(addr).ok_or(
+    let (proto, sockaddr) = utils::parse_proto(addr).ok_or(
         io_err!(InvalidInput, "Invalid protocol or address")
-    ));
+    )?;
 
     if proto != "tcp" {
         return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
@@ -278,18 +277,18 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
         sigaction(Signal::SIGCHLD, &SigAction::new(SigHandler::SigIgn, SaFlags::empty(), SigSet::empty()))?;
     }
 
-    let listener = try!(TcpListener::bind(&sockaddr[..]));
+    let listener = TcpListener::bind(&sockaddr[..])?;
 
     loop {
-        let (stream, remote) = try!(listener.accept());
+        let (stream, remote) = listener.accept()?;
 
-        match try!(nix::unistd::fork()) {
+        match nix::unistd::fork()? {
             nix::unistd::ForkResult::Parent { .. } => {},
             nix::unistd::ForkResult::Child => {
                 info!("ServerProcess={} starts", remote);
 
-                try!(utils::setup_tcp_stream(&stream));
-                let result = try!(ServerInstance::new(filesystem, stream)).dispatch();
+                utils::setup_tcp_stream(&stream)?;
+                let result = ServerInstance::new(filesystem, stream)?.dispatch();
 
                 info!("ServerProcess={} finished: {:?}", remote, result);
                 process::exit(1);
@@ -303,26 +302,26 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = try!(utils::parse_proto(addr).ok_or(
+    let (proto, sockaddr) = utils::parse_proto(addr).ok_or(
         io_err!(InvalidInput, "Invalid protocol or address")
-    ));
+    )?;
 
     if proto != "tcp" {
         return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
     }
 
     let arc_fs = Arc::new(Mutex::new(filesystem));
-    let listener = try!(TcpListener::bind(&sockaddr[..]));
+    let listener = TcpListener::bind(&sockaddr[..])?;
 
     loop {
-        let (stream, remote) = try!(listener.accept());
+        let (stream, remote) = listener.accept()?;
         let (fs, thread_name) = (arc_fs.clone(), format!("{}", remote));
 
         let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
             info!("ServerThread={:?} started", thread_name);
             let result = {|| {
-                try!(utils::setup_tcp_stream(&stream));
-                try!(SpawnServerInstance::new(fs, stream)).dispatch()
+                utils::setup_tcp_stream(&stream)?;
+                SpawnServerInstance::new(fs, stream)?.dispatch()
             }}();
             info!("ServerThread={:?} finished: {:?}", thread_name, result);
         });

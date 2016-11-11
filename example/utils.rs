@@ -20,7 +20,7 @@ pub fn create_buffer(size: usize) -> Vec<u8> {
 }
 
 pub fn get_qid<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<Qid> {
-    Ok(qid_from_attr( &try!(fs::symlink_metadata(path.as_ref())) ))
+    Ok(qid_from_attr( &fs::symlink_metadata(path.as_ref())? ))
 }
 
 pub fn qid_from_attr(attr: &fs::Metadata) -> Qid {
@@ -33,7 +33,7 @@ pub fn qid_from_attr(attr: &fs::Metadata) -> Qid {
 
 pub fn get_dirent_from<P: AsRef<Path> + ?Sized>(p: &P, offset: u64) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
-        qid: try!(get_qid(p)),
+        qid: get_qid(p)?,
         offset: offset,
         typ: 0,
         name: p.as_ref().to_string_lossy().into_owned()
@@ -42,7 +42,7 @@ pub fn get_dirent_from<P: AsRef<Path> + ?Sized>(p: &P, offset: u64) -> rs9p::Res
 
 pub fn get_dirent(entry: &fs::DirEntry, offset: u64) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
-        qid: qid_from_attr(&try!(entry.metadata())),
+        qid: qid_from_attr(&entry.metadata()?),
         offset: offset,
         typ: 0,
         name: entry.file_name().to_string_lossy().into_owned()

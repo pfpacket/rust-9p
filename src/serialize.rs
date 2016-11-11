@@ -87,7 +87,7 @@ impl<W: WriteBytesExt> Encoder<W> {
 
     /// Encode data, equivalent to: decoder << data
     pub fn encode<T: Encodable,>(&mut self, data: &T) -> Result<usize> {
-        let bytes = try!(data.encode(&mut self.writer));
+        let bytes = data.encode(&mut self.writer)?;
         self.bytes += bytes;
         Ok(bytes)
     }
@@ -178,8 +178,8 @@ impl Encodable for u64 {
 
 impl Encodable for String {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        let mut bytes = try!((self.len() as u16).encode(w));
-        bytes += try!(w.write_all(self.as_bytes()).and(Ok(self.len())));
+        let mut bytes = (self.len() as u16).encode(w)?;
+        bytes += w.write_all(self.as_bytes()).and(Ok(self.len()))?;
         Ok(bytes)
     }
 }
@@ -245,8 +245,8 @@ impl Encodable for DirEntryData {
 impl Encodable for Data {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
         let size = self.0.len();
-        let bytes = try!((size as u32).encode(w)) + size;
-        try!(w.write_all(&self.0));
+        let bytes = (size as u32).encode(w)? + size;
+        w.write_all(&self.0)?;
         Ok(bytes)
     }
 }
@@ -388,8 +388,8 @@ impl Decodable for u64 {
 
 impl Decodable for String {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
-        let len: u16 = try!(Decodable::decode(r));
-        let buf = try!(read_exact(r, len as usize));
+        let len: u16 = Decodable::decode(r)?;
+        let buf = read_exact(r, len as usize)?;
         String::from_utf8(buf).or(res!(io_err!(Other, "Invalid UTF-8 sequence")))
     }
 }
@@ -398,8 +398,8 @@ impl Decodable for Qid {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Qid {
             typ: decode!(QidType, *r),
-            version: try!(Decodable::decode(r)),
-            path:    try!(Decodable::decode(r))
+            version: Decodable::decode(r)?,
+            path:    Decodable::decode(r)?
         })
     }
 }
@@ -407,15 +407,15 @@ impl Decodable for Qid {
 impl Decodable for Statfs {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Statfs {
-            typ: try!(Decodable::decode(r)),
-            bsize: try!(Decodable::decode(r)),
-            blocks: try!(Decodable::decode(r)),
-            bfree: try!(Decodable::decode(r)),
-            bavail: try!(Decodable::decode(r)),
-            files: try!(Decodable::decode(r)),
-            ffree: try!(Decodable::decode(r)),
-            fsid: try!(Decodable::decode(r)),
-            namelen: try!(Decodable::decode(r)),
+            typ: Decodable::decode(r)?,
+            bsize: Decodable::decode(r)?,
+            blocks: Decodable::decode(r)?,
+            bfree: Decodable::decode(r)?,
+            bavail: Decodable::decode(r)?,
+            files: Decodable::decode(r)?,
+            ffree: Decodable::decode(r)?,
+            fsid: Decodable::decode(r)?,
+            namelen: Decodable::decode(r)?,
         })
     }
 }
@@ -423,8 +423,8 @@ impl Decodable for Statfs {
 impl Decodable for Time {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Time {
-            sec: try!(Decodable::decode(r)),
-            nsec: try!(Decodable::decode(r)),
+            sec: Decodable::decode(r)?,
+            nsec: Decodable::decode(r)?,
         })
     }
 }
@@ -432,17 +432,17 @@ impl Decodable for Time {
 impl Decodable for Stat {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Stat {
-            mode: try!(Decodable::decode(r)),
-            uid: try!(Decodable::decode(r)),
-            gid: try!(Decodable::decode(r)),
-            nlink: try!(Decodable::decode(r)),
-            rdev: try!(Decodable::decode(r)),
-            size: try!(Decodable::decode(r)),
-            blksize: try!(Decodable::decode(r)),
-            blocks: try!(Decodable::decode(r)),
-            atime: try!(Decodable::decode(r)),
-            mtime: try!(Decodable::decode(r)),
-            ctime: try!(Decodable::decode(r)),
+            mode: Decodable::decode(r)?,
+            uid: Decodable::decode(r)?,
+            gid: Decodable::decode(r)?,
+            nlink: Decodable::decode(r)?,
+            rdev: Decodable::decode(r)?,
+            size: Decodable::decode(r)?,
+            blksize: Decodable::decode(r)?,
+            blocks: Decodable::decode(r)?,
+            atime: Decodable::decode(r)?,
+            mtime: Decodable::decode(r)?,
+            ctime: Decodable::decode(r)?,
         })
     }
 }
@@ -450,12 +450,12 @@ impl Decodable for Stat {
 impl Decodable for SetAttr {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(SetAttr {
-            mode: try!(Decodable::decode(r)),
-            uid: try!(Decodable::decode(r)),
-            gid: try!(Decodable::decode(r)),
-            size: try!(Decodable::decode(r)),
-            atime: try!(Decodable::decode(r)),
-            mtime: try!(Decodable::decode(r)),
+            mode: Decodable::decode(r)?,
+            uid: Decodable::decode(r)?,
+            gid: Decodable::decode(r)?,
+            size: Decodable::decode(r)?,
+            atime: Decodable::decode(r)?,
+            mtime: Decodable::decode(r)?,
         })
     }
 }
@@ -463,20 +463,20 @@ impl Decodable for SetAttr {
 impl Decodable for DirEntry {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(DirEntry {
-            qid: try!(Decodable::decode(r)),
-            offset: try!(Decodable::decode(r)),
-            typ: try!(Decodable::decode(r)),
-            name: try!(Decodable::decode(r)),
+            qid: Decodable::decode(r)?,
+            offset: Decodable::decode(r)?,
+            typ: Decodable::decode(r)?,
+            name: Decodable::decode(r)?,
         })
     }
 }
 
 impl Decodable for DirEntryData {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
-        let count: u32 = try!(Decodable::decode(r));
+        let count: u32 = Decodable::decode(r)?;
         let mut data: Vec<DirEntry> = Vec::with_capacity(count as usize);
         for _ in 0..count {
-            data.push(try!(Decodable::decode(r)));
+            data.push(Decodable::decode(r)?);
         }
         Ok(DirEntryData::with(data))
     }
@@ -484,8 +484,8 @@ impl Decodable for DirEntryData {
 
 impl Decodable for Data {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
-        let len: u32 = try!(Decodable::decode(r));
-        let buf = try!(read_exact(r, len as usize));
+        let len: u32 = Decodable::decode(r)?;
+        let buf = read_exact(r, len as usize)?;
         Ok(Data(buf))
     }
 }
@@ -495,10 +495,10 @@ impl Decodable for Flock {
         Ok(Flock {
             typ: decode!(LockType, *r),
             flags: decode!(LockFlag, *r),
-            start: try!(Decodable::decode(r)),
-            length: try!(Decodable::decode(r)),
-            proc_id: try!(Decodable::decode(r)),
-            client_id: try!(Decodable::decode(r)),
+            start: Decodable::decode(r)?,
+            length: Decodable::decode(r)?,
+            proc_id: Decodable::decode(r)?,
+            client_id: Decodable::decode(r)?,
         })
     }
 }
@@ -507,20 +507,20 @@ impl Decodable for Getlock {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Getlock {
             typ: decode!(LockType, *r),
-            start: try!(Decodable::decode(r)),
-            length: try!(Decodable::decode(r)),
-            proc_id: try!(Decodable::decode(r)),
-            client_id: try!(Decodable::decode(r)),
+            start: Decodable::decode(r)?,
+            length: Decodable::decode(r)?,
+            proc_id: Decodable::decode(r)?,
+            client_id: Decodable::decode(r)?,
         })
     }
 }
 
 impl<T: Decodable> Decodable for Vec<T> {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
-        let len: u16 = try!(Decodable::decode(r));
+        let len: u16 = Decodable::decode(r)?;
         let mut buf = Vec::new();
         for _ in 0..len {
-            buf.push(try!(Decodable::decode(r)));
+            buf.push(Decodable::decode(r)?);
         }
         Ok(buf)
     }
@@ -530,8 +530,8 @@ impl Decodable for Msg {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         use MsgType::*;
 
-        let size = try!(r.read_u32::<LittleEndian>()) - 4;
-        let mut buf = Cursor::new(try!(read_exact(r, size as usize)));
+        let size = r.read_u32::<LittleEndian>()? - 4;
+        let mut buf = Cursor::new(read_exact(r, size as usize)?);
 
         let msg_type = MsgType::from_u8(decode!(buf));
         let tag = decode!(buf);
