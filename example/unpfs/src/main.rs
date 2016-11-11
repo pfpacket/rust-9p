@@ -5,7 +5,6 @@ extern crate env_logger;
 extern crate filetime;
 
 use std::fs;
-use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::io::{Seek, SeekFrom, Read, Write};
 use std::os::unix::prelude::*;
@@ -23,19 +22,13 @@ struct UnpfsFid {
 }
 
 impl UnpfsFid {
-    fn new<P: AsRef<OsStr> + ?Sized>(path: &P) -> UnpfsFid {
+    fn new<P: AsRef<std::ffi::OsStr> + ?Sized>(path: &P) -> UnpfsFid {
         UnpfsFid { realpath: PathBuf::from(path), file: None, }
     }
 }
 
 struct Unpfs {
     realroot: PathBuf,
-}
-
-impl Unpfs {
-    fn new(mountpoint: &str) -> Unpfs {
-        Unpfs { realroot: PathBuf::from(mountpoint), }
-    }
 }
 
 impl Filesystem for Unpfs {
@@ -197,8 +190,8 @@ impl Filesystem for Unpfs {
     }
 
     fn rstatfs(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        let fs = nix::sys::statvfs::vfs::Statvfs::for_path(&fid.aux().realpath);
-        Ok(Fcall::Rstatfs { statfs: From::from(fs?) })
+        let fs = nix::sys::statvfs::vfs::Statvfs::for_path(&fid.aux().realpath)?;
+        Ok(Fcall::Rstatfs { statfs: From::from(fs) })
     }
 }
 
@@ -209,15 +202,13 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
         return Ok(-1);
     }
 
-    let mountpoint = &args[2];
-    if !fs::metadata(mountpoint)?.is_dir() {
+    let (addr, mountpoint) = (&args[1], PathBuf::from(&args[2]));
+    if !fs::metadata(mountpoint.as_path())?.is_dir() {
         return res!(io_err!(Other, "mount point must be a directory"));
     }
 
-    println!("[*] Ready to accept clients: {}", args[1]);
-    rs9p::srv_spawn(Unpfs::new(mountpoint), &args[1])?;
-
-    return Ok(0);
+    println!("[*] Ready to accept clients: {}", addr);
+    rs9p::srv_spawn(Unpfs { realroot: mountpoint }, addr).and(Ok(0))
 }
 
 fn main() {

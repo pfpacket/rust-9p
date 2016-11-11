@@ -6,17 +6,14 @@ extern crate byteorder;
 
 use fcall::*;
 use std::mem;
-use std::ops::{Shl, Shr};
+use std::ops::{Shl, Shr, Carrier};
 use std::io::{Read, Cursor, Result};
 use self::num::FromPrimitive;
 use self::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 macro_rules! decode {
-    ($decoder:expr) => { try!(Decodable::decode(&mut $decoder)) }
-}
-
-macro_rules! decode_trunc {
-    ($typ:ident, $buf:expr) => { $typ::from_bits_truncate(decode!($buf)) }
+    ($decoder:expr) => { Decodable::decode(&mut $decoder)? };
+    ($typ:ident, $buf:expr) => { $typ::from_bits_truncate(decode!($buf)) };
 }
 
 // Create an unintialized buffer
@@ -33,13 +30,34 @@ fn read_exact<R: Read + ?Sized>(r: &mut R, size: usize) -> Result<Vec<u8>> {
 }
 
 /// A serializing specific result to overload operators on `Result`
+///
+/// # Overloaded operators
+/// <<, >>, ?
 pub struct SResult<T>(::std::io::Result<T>);
 
-/// A macro to try! `SResult`
-#[macro_export]
-macro_rules! stry { ($sres:expr) => { try!($sres.0) } }
+impl<U> Carrier for SResult<U> {
+    type Success = U;
+    type Error = ::std::io::Error;
 
-macro_rules! etry {
+    fn from_success(u: Self::Success) -> SResult<U> {
+        SResult(Ok(u))
+    }
+
+    fn from_error(e: Self::Error) -> SResult<U> {
+        SResult(Err(e))
+    }
+
+    fn translate<T>(self) -> T
+        where T: Carrier<Success=U, Error=Self::Error>
+    {
+        match self.0 {
+            Ok(u) => T::from_success(u),
+            Err(e) => T::from_error(e),
+        }
+    }
+}
+
+macro_rules! stry {
     ($res:expr) => {
         match $res {
             Ok(v) => v,
@@ -60,7 +78,9 @@ pub struct Encoder<W> {
 }
 
 impl<W: WriteBytesExt> Encoder<W> {
-    pub fn new(writer: W) -> Encoder<W> { Encoder { writer: writer, bytes: 0 } }
+    pub fn new(writer: W) -> Encoder<W> {
+        Encoder { writer: writer, bytes: 0 }
+    }
 
     /// Return total bytes written
     pub fn bytes_written(&self) -> usize { self.bytes }
@@ -79,7 +99,7 @@ impl<W: WriteBytesExt> Encoder<W> {
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
     type Output = SResult<Encoder<W>>;
     fn shl(mut self, rhs: &'a T) -> Self::Output {
-        etry!(self.encode(rhs));
+        stry!(self.encode(rhs));
         SResult(Ok(self))
     }
 }
@@ -87,8 +107,8 @@ impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for SResult<Encoder<W>> {
     type Output = Self;
     fn shl(self, rhs: &'a T) -> Self::Output {
-        let mut encoder = etry!(self.0);
-        etry!(encoder.encode(rhs));
+        let mut encoder = stry!(self.0);
+        stry!(encoder.encode(rhs));
         SResult(Ok(encoder))
     }
 }
@@ -112,7 +132,7 @@ impl<R: ReadBytesExt> Decoder<R> {
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
     type Output = SResult<Decoder<R>>;
     fn shr(mut self, rhs: &'a mut T) -> Self::Output {
-        *rhs = etry!(self.decode());
+        *rhs = stry!(self.decode());
         SResult(Ok(self))
     }
 }
@@ -120,8 +140,8 @@ impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for SResult<Decoder<R>> {
     type Output = Self;
     fn shr(self, rhs: &'a mut T) -> Self::Output {
-        let mut decoder = etry!(self.0);
-        *rhs = etry!(decoder.decode());
+        let mut decoder = stry!(self.0);
+        *rhs = stry!(decoder.decode());
         SResult(Ok(decoder))
     }
 }
@@ -166,63 +186,59 @@ impl Encodable for String {
 
 impl Encodable for Qid {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(
-            Encoder::new(w) << &self.typ.bits() << &self.version << &self.path
-        ).bytes_written())
+        Ok((Encoder::new(w) << &self.typ.bits() << &self.version << &self.path)?.bytes_written())
     }
 }
 
 impl Encodable for Statfs {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(Encoder::new(w)
+        Ok((Encoder::new(w)
             << &self.typ << &self.bsize << &self.blocks
             << &self.bfree << &self.bavail << &self.files
             << &self.ffree << &self.fsid << &self.namelen
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
 impl Encodable for Time {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(
-            Encoder::new(w) << &self.sec << &self.nsec
-        ).bytes_written())
+        Ok((Encoder::new(w) << &self.sec << &self.nsec)?.bytes_written())
     }
 }
 
 impl Encodable for Stat {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(Encoder::new(w)
+        Ok((Encoder::new(w)
             << &self.mode << &self.uid << &self.gid
             << &self.nlink << &self.rdev << &self.size
             << &self.blksize << &self.blocks << &self.atime
             << &self.mtime << &self.ctime
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
 impl Encodable for SetAttr {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(Encoder::new(w)
+        Ok((Encoder::new(w)
             << &self.mode << &self.uid << &self.gid
             << &self.size << &self.atime << &self.mtime
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
 impl Encodable for DirEntry {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(Encoder::new(w)
+        Ok((Encoder::new(w)
             << &self.qid << &self.offset << &self.typ << &self.name
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
 impl Encodable for DirEntryData {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(self.data().iter()
+        Ok((self.data().iter()
             .fold(Encoder::new(w) << &self.size(), |acc, e| acc << e)
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
@@ -237,27 +253,27 @@ impl Encodable for Data {
 
 impl Encodable for Flock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(Encoder::new(w)
+        Ok((Encoder::new(w)
             << &self.typ.bits() << &self.flags.bits() << &self.start
             << &self.length << &self.proc_id << &self.client_id
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
 impl Encodable for Getlock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(Encoder::new(w)
+        Ok((Encoder::new(w)
             << &self.typ.bits() << &self.start << &self.length
             << &self.proc_id << &self.client_id
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
 impl<T: Encodable> Encodable for Vec<T> {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(stry!(self.iter()
+        Ok((self.iter()
             .fold(Encoder::new(w) << &(self.len() as u16), |acc, s| acc << s)
-        ).bytes_written())
+        )?.bytes_written())
     }
 }
 
@@ -266,8 +282,8 @@ impl Encodable for Msg {
         use Fcall::*;
 
         let typ = MsgType::from(&self.body);
-        let buf = Encoder::new(Vec::with_capacity(8196)) << &(typ as u8) << &self.tag;
-        let buf = stry!(match self.body {
+        let buf = Encoder::new(Vec::with_capacity(8196)) << &(0u32 /* size */) << &(typ as u8) << &self.tag;
+        let buf = (match self.body {
             // 9P2000.L
             Rlerror { ref ecode }                                                   => { buf << ecode },
             Tstatfs { ref fid }                                                     => { buf << fid },
@@ -330,16 +346,13 @@ impl Encodable for Msg {
             Rclunk                                                                  => { buf },
             Tremove { ref fid }                                                     => { buf << fid },
             Rremove                                                                 => { buf },
-        });
+        })?;
 
-        let mut raw_buf = buf.into_inner();
-        let size = mem::size_of::<u32>() + raw_buf.len();
+        let mut vec_buffer = buf.into_inner();
+        let buf_size = vec_buffer.len();
+        unsafe { *(vec_buffer.as_mut_ptr() as *mut u32) = buf_size as u32 };
 
-        let size_buf = stry!(Encoder::new(Vec::new()) << &(size as u32)).into_inner();
-        for v in size_buf.iter().rev() { raw_buf.insert(0, *v); }
-
-        try!(w.write_all(&raw_buf));
-        Ok(size)
+        w.write_all(&vec_buffer).and(Ok(buf_size))
     }
 }
 
@@ -384,7 +397,7 @@ impl Decodable for String {
 impl Decodable for Qid {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Qid {
-            typ: decode_trunc!(QidType, *r),
+            typ: decode!(QidType, *r),
             version: try!(Decodable::decode(r)),
             path:    try!(Decodable::decode(r))
         })
@@ -480,8 +493,8 @@ impl Decodable for Data {
 impl Decodable for Flock {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Flock {
-            typ: decode_trunc!(LockType, *r),
-            flags: decode_trunc!(LockFlag, *r),
+            typ: decode!(LockType, *r),
+            flags: decode!(LockFlag, *r),
             start: try!(Decodable::decode(r)),
             length: try!(Decodable::decode(r)),
             proc_id: try!(Decodable::decode(r)),
@@ -493,7 +506,7 @@ impl Decodable for Flock {
 impl Decodable for Getlock {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         Ok(Getlock {
-            typ: decode_trunc!(LockType, *r),
+            typ: decode!(LockType, *r),
             start: try!(Decodable::decode(r)),
             length: try!(Decodable::decode(r)),
             proc_id: try!(Decodable::decode(r)),
@@ -539,13 +552,13 @@ impl Decodable for Msg {
             Some(Rrename)       => Fcall::Rrename,
             Some(Treadlink)     => Fcall::Treadlink { fid: decode!(buf) },
             Some(Rreadlink)     => Fcall::Rreadlink { target: decode!(buf) },
-            Some(Tgetattr)      => Fcall::Tgetattr { fid: decode!(buf), req_mask: decode_trunc!(GetattrMask, buf) },
+            Some(Tgetattr)      => Fcall::Tgetattr { fid: decode!(buf), req_mask: decode!(GetattrMask, buf) },
             Some(Rgetattr)      => {
-                let r = Fcall::Rgetattr { valid: decode_trunc!(GetattrMask, buf), qid: decode!(buf), stat: decode!(buf) };
+                let r = Fcall::Rgetattr { valid: decode!(GetattrMask, buf), qid: decode!(buf), stat: decode!(buf) };
                 let (_btime, _gen, _ver): (Time, u64, u64) = (decode!(buf), decode!(buf), decode!(buf));
                 r
             },
-            Some(Tsetattr)      => Fcall::Tsetattr { fid: decode!(buf), valid: decode_trunc!(SetattrMask, buf), stat: decode!(buf) },
+            Some(Tsetattr)      => Fcall::Tsetattr { fid: decode!(buf), valid: decode!(SetattrMask, buf), stat: decode!(buf) },
             Some(Rsetattr)      => Fcall::Rsetattr,
             Some(Txattrwalk)    => Fcall::Txattrwalk { fid: decode!(buf), newfid: decode!(buf), name: decode!(buf) },
             Some(Rxattrwalk)    => Fcall::Rxattrwalk { size: decode!(buf) },
@@ -556,7 +569,7 @@ impl Decodable for Msg {
             Some(Tfsync)        => Fcall::Tfsync { fid: decode!(buf) },
             Some(Rfsync)        => Fcall::Rfsync,
             Some(Tlock)         => Fcall::Tlock { fid: decode!(buf), flock: decode!(buf) },
-            Some(Rlock)         => Fcall::Rlock { status: decode_trunc!(LockStatus, buf) },
+            Some(Rlock)         => Fcall::Rlock { status: decode!(LockStatus, buf) },
             Some(Tgetlock)      => Fcall::Tgetlock { fid: decode!(buf), flock: decode!(buf) },
             Some(Rgetlock)      => Fcall::Rgetlock { flock: decode!(buf) },
             Some(Tlink)         => Fcall::Tlink { dfid: decode!(buf), fid: decode!(buf), name: decode!(buf) },

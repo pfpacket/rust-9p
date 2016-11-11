@@ -12,6 +12,8 @@
 //! rs9p is a library to develop 9P2000.L virtual filesystems in Rust.
 //! All you have to do is to implement `Filesystem` trait.
 
+#![feature(question_mark_carrier)]
+
 #[macro_use]
 extern crate log;
 #[macro_use]
