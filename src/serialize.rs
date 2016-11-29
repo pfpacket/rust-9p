@@ -389,8 +389,8 @@ impl Decodable for u64 {
 impl Decodable for String {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u16 = Decodable::decode(r)?;
-        let buf = read_exact(r, len as usize)?;
-        String::from_utf8(buf).or(res!(io_err!(Other, "Invalid UTF-8 sequence")))
+        String::from_utf8(read_exact(r, len as usize)?)
+            .or(res!(io_err!(Other, "Invalid UTF-8 sequence")))
     }
 }
 
@@ -485,8 +485,7 @@ impl Decodable for DirEntryData {
 impl Decodable for Data {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u32 = Decodable::decode(r)?;
-        let buf = read_exact(r, len as usize)?;
-        Ok(Data(buf))
+        Ok(Data(read_exact(r, len as usize)?))
     }
 }
 

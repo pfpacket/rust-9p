@@ -153,10 +153,7 @@ impl<Fs, RwExt> ServerInstance<Fs, RwExt>
             let msg = serialize::read_msg(&mut self.stream)?;
 
             debug!("\t→ {:?}", msg);
-            let (fcall, tag) = dispatch_once(
-                msg,
-                &mut self.fs,
-                &mut self.fids)?;
+            let (fcall, tag) = dispatch_once(msg, &mut self.fs, &mut self.fids)?;
 
             utils::respond(&mut self.stream, tag, fcall)?;
         }
@@ -183,14 +180,12 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
 
     fn dispatch(&mut self) -> Result<()> {
         loop {
+            //let msg = serialize::read_msg(&mut self.stream)?;
             let msg = serialize::read_msg(&mut self.stream)?;
 
             debug!("\t→ {:?}", msg);
-            let (fcall, tag) = dispatch_once(
-                msg,
-                &mut *self.fs.lock().unwrap(),
-                &mut self.fids
-            )?;
+            let (fcall, tag) =
+                dispatch_once(msg, &mut *self.fs.lock().unwrap(), &mut self.fids)?;
 
             utils::respond(&mut self.stream, tag, fcall)?;
         }
@@ -302,9 +297,8 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = utils::parse_proto(addr).ok_or(
-        io_err!(InvalidInput, "Invalid protocol or address")
-    )?;
+    let (proto, sockaddr) = utils::parse_proto(addr)
+        .ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
 
     if proto != "tcp" {
         return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
@@ -315,14 +309,15 @@ pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) ->
 
     loop {
         let (stream, remote) = listener.accept()?;
-        let (fs, thread_name) = (arc_fs.clone(), format!("{}", remote));
+        let (fs, thread_name) = (arc_fs.clone(), remote.to_string());
 
         let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
             info!("ServerThread={:?} started", thread_name);
-            let result = {|| {
-                utils::setup_tcp_stream(&stream)?;
-                SpawnServerInstance::new(fs, stream)?.dispatch()
-            }}();
+
+            let result = utils::setup_tcp_stream(&stream)
+                .map_err(From::from)
+                .and_then(|_| SpawnServerInstance::new(fs, stream)?.dispatch());
+
             info!("ServerThread={:?} finished: {:?}", thread_name, result);
         });
     }
