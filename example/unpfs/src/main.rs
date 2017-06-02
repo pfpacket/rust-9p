@@ -203,7 +203,7 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
     }
 
     let (addr, mountpoint) = (&args[1], PathBuf::from(&args[2]));
-    if !fs::metadata(mountpoint.as_path())?.is_dir() {
+    if !fs::metadata(&mountpoint)?.is_dir() {
         return res!(io_err!(Other, "mount point must be a directory"));
     }
 
@@ -214,9 +214,7 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
 fn main() {
     env_logger::init().unwrap();
     let args = std::env::args().collect();
-    let exit_code = match unpfs_main(args) {
-        Ok(code) => code,
-        Err(e) => { println!("Error: {}", e); -1 }
-    };
+    let exit_code = unpfs_main(args)
+        .unwrap_or_else(|e| { println!("Error: {}", e); -1 });
     std::process::exit(exit_code);
 }

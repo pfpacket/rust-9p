@@ -6,7 +6,7 @@ extern crate byteorder;
 
 use fcall::*;
 use std::mem;
-use std::ops::{Shl, Shr, Carrier};
+use std::ops::{Shl, Shr, Try};
 use std::io::{Read, Cursor, Result};
 use self::num::FromPrimitive;
 use self::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -35,34 +35,20 @@ fn read_exact<R: Read + ?Sized>(r: &mut R, size: usize) -> Result<Vec<u8>> {
 /// <<, >>, ?
 pub struct SResult<T>(::std::io::Result<T>);
 
-impl<U> Carrier for SResult<U> {
-    type Success = U;
+impl<U> Try for SResult<U> {
+    type Ok = U;
     type Error = ::std::io::Error;
 
-    fn from_success(u: Self::Success) -> SResult<U> {
-        SResult(Ok(u))
+    fn into_result(self) -> ::std::result::Result<Self::Ok, Self::Error> {
+        self.0
     }
 
-    fn from_error(e: Self::Error) -> SResult<U> {
-        SResult(Err(e))
+    fn from_error(v: Self::Error) -> Self {
+        SResult(Err(v))
     }
 
-    fn translate<T>(self) -> T
-        where T: Carrier<Success=U, Error=Self::Error>
-    {
-        match self.0 {
-            Ok(u) => T::from_success(u),
-            Err(e) => T::from_error(e),
-        }
-    }
-}
-
-macro_rules! stry {
-    ($res:expr) => {
-        match $res {
-            Ok(v) => v,
-            Err(e) => return ::serialize::SResult(Err(From::from(e))),
-        }
+    fn from_ok(v: Self::Ok) -> Self {
+        SResult(Ok(v))
     }
 }
 
@@ -99,7 +85,7 @@ impl<W: WriteBytesExt> Encoder<W> {
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
     type Output = SResult<Encoder<W>>;
     fn shl(mut self, rhs: &'a T) -> Self::Output {
-        stry!(self.encode(rhs));
+        self.encode(rhs)?;
         SResult(Ok(self))
     }
 }
@@ -107,8 +93,8 @@ impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for SResult<Encoder<W>> {
     type Output = Self;
     fn shl(self, rhs: &'a T) -> Self::Output {
-        let mut encoder = stry!(self.0);
-        stry!(encoder.encode(rhs));
+        let mut encoder = self.0?;
+        encoder.encode(rhs)?;
         SResult(Ok(encoder))
     }
 }
@@ -132,7 +118,7 @@ impl<R: ReadBytesExt> Decoder<R> {
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
     type Output = SResult<Decoder<R>>;
     fn shr(mut self, rhs: &'a mut T) -> Self::Output {
-        *rhs = stry!(self.decode());
+        *rhs = self.decode()?;
         SResult(Ok(self))
     }
 }
@@ -140,8 +126,8 @@ impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for SResult<Decoder<R>> {
     type Output = Self;
     fn shr(self, rhs: &'a mut T) -> Self::Output {
-        let mut decoder = stry!(self.0);
-        *rhs = stry!(decoder.decode());
+        let mut decoder = self.0?;
+        *rhs = decoder.decode()?;
         SResult(Ok(decoder))
     }
 }
