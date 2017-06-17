@@ -11,8 +11,8 @@ crate-type = ["rlib"]
 [dependencies]
 log = "0.3"
 num = "0.1"
-nix = "0.7"
-byteorder = "0.5"
-bitflags = "0.7"
+nix = "0.8"
+byteorder = "1"
+bitflags = "0.9"
 enum_primitive = "*"
 net2 = { version = "0.2", features = ["nightly"] }
