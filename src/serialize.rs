@@ -1,14 +1,14 @@
 
 //! Serialize/deserialize 9P messages into/from binary.
 
-extern crate num;
+extern crate num_traits;
 extern crate byteorder;
 
 use fcall::*;
 use std::mem;
 use std::ops::{Shl, Shr, Try};
 use std::io::{Read, Cursor, Result};
-use self::num::FromPrimitive;
+use self::num_traits::FromPrimitive;
 use self::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 macro_rules! decode {
