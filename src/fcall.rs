@@ -134,10 +134,10 @@ pub mod p92000 {
 /// File lock type, Flock.typ
 pub mod ltype {
     bitflags! {
-        pub flags LockType: u8 {
-            const RDLOCK    = 0,
-            const WRLOCK    = 1,
-            const UNLOCK    = 2,
+        pub struct LockType: u8 {
+            const RDLOCK    = 0;
+            const WRLOCK    = 1;
+            const UNLOCK    = 2;
         }
     }
 }
@@ -146,11 +146,11 @@ pub use self::ltype::LockType;
 /// File lock flags, Flock.flags
 pub mod lflag {
     bitflags! {
-        pub flags LockFlag: u32 {
+        pub struct LockFlag: u32 {
             #[doc = "Blocking request"]
-            const BLOCK     = 1,
+            const BLOCK     = 1;
             #[doc = "Reserved for future use"]
-            const RECLAIM   = 2,
+            const RECLAIM   = 2;
         }
     }
 }
@@ -159,11 +159,11 @@ pub use self::lflag::LockFlag;
 /// File lock status
 pub mod lstatus {
     bitflags! {
-        pub flags LockStatus: u8 {
-            const SUCCESS   = 0,
-            const BLOCKED   = 1,
-            const ERROR     = 2,
-            const GRACE     = 3,
+        pub struct LockStatus: u8 {
+            const SUCCESS   = 0;
+            const BLOCKED   = 1;
+            const ERROR     = 2;
+            const GRACE     = 3;
         }
     }
 }
@@ -177,25 +177,25 @@ pub use self::lstatus::LockStatus;
 /// 9P2000/9P2000.L
 pub mod qt {
     bitflags! {
-        pub flags QidType: u8 {
+        pub struct QidType: u8 {
             #[doc = "Type bit for directories"]
-            const DIR       = 0x80,
+            const DIR       = 0x80;
             #[doc = "Type bit for append only files"]
-            const APPEND    = 0x40,
+            const APPEND    = 0x40;
             #[doc = "Type bit for exclusive use files"]
-            const EXCL      = 0x20,
+            const EXCL      = 0x20;
             #[doc = "Type bit for mounted channel"]
-            const MOUNT     = 0x10,
+            const MOUNT     = 0x10;
             #[doc = "Type bit for authentication file"]
-            const AUTH      = 0x08,
+            const AUTH      = 0x08;
             #[doc = "Type bit for not-backed-up file"]
-            const TMP       = 0x04,
+            const TMP       = 0x04;
             #[doc = "Type bits for symbolic links (9P2000.u)"]
-            const SYMLINK   = 0x02,
+            const SYMLINK   = 0x02;
             #[doc = "Type bits for hard-link (9P2000.u)"]
-            const LINK      = 0x01,
+            const LINK      = 0x01;
             #[doc = "Plain file"]
-            const FILE      = 0x00,
+            const FILE      = 0x00;
         }
     }
 
@@ -222,27 +222,27 @@ pub use self::qt::QidType;
 /// 9P2000.L
 pub mod getattr {
     bitflags! {
-        pub flags GetattrMask: u64 {
-            const MODE          = 0x00000001,
-            const NLINK         = 0x00000002,
-            const UID           = 0x00000004,
-            const GID           = 0x00000008,
-            const RDEV          = 0x00000010,
-            const ATIME         = 0x00000020,
-            const MTIME         = 0x00000040,
-            const CTIME         = 0x00000080,
-            const INO           = 0x00000100,
-            const SIZE          = 0x00000200,
-            const BLOCKS        = 0x00000400,
+        pub struct GetattrMask: u64 {
+            const MODE          = 0x00000001;
+            const NLINK         = 0x00000002;
+            const UID           = 0x00000004;
+            const GID           = 0x00000008;
+            const RDEV          = 0x00000010;
+            const ATIME         = 0x00000020;
+            const MTIME         = 0x00000040;
+            const CTIME         = 0x00000080;
+            const INO           = 0x00000100;
+            const SIZE          = 0x00000200;
+            const BLOCKS        = 0x00000400;
 
-            const BTIME         = 0x00000800,
-            const GEN           = 0x00001000,
-            const DATA_VERSION  = 0x00002000,
+            const BTIME         = 0x00000800;
+            const GEN           = 0x00001000;
+            const DATA_VERSION  = 0x00002000;
 
             #[doc = "Mask for fields up to BLOCKS"]
-            const BASIC         =0x000007ff,
+            const BASIC         =0x000007ff;
             #[doc = "Mask for All fields above"]
-            const ALL           = 0x00003fff,
+            const ALL           = 0x00003fff;
         }
     }
 }
@@ -257,16 +257,16 @@ pub use self::getattr::GetattrMask;
 /// 9P2000.L
 pub mod setattr {
     bitflags! {
-        pub flags SetattrMask: u32 {
-            const MODE      = 0x00000001,
-            const UID       = 0x00000002,
-            const GID       = 0x00000004,
-            const SIZE      = 0x00000008,
-            const ATIME     = 0x00000010,
-            const MTIME     = 0x00000020,
-            const CTIME     = 0x00000040,
-            const ATIME_SET = 0x00000080,
-            const MTIME_SET = 0x00000100,
+        pub struct SetattrMask: u32 {
+            const MODE      = 0x00000001;
+            const UID       = 0x00000002;
+            const GID       = 0x00000004;
+            const SIZE      = 0x00000008;
+            const ATIME     = 0x00000010;
+            const MTIME     = 0x00000020;
+            const CTIME     = 0x00000040;
+            const ATIME_SET = 0x00000080;
+            const MTIME_SET = 0x00000100;
         }
     }
 }
