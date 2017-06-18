@@ -10,7 +10,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 log = "0.3"
-num = "0.1"
+num-traits = "0.1"
 nix = "0.7"
 byteorder = "0.5"
 bitflags = "0.7"
