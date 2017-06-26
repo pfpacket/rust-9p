@@ -99,8 +99,8 @@ impl Filesystem for Unpfs {
         let mut dirents = DirEntryData::new();
 
         let offset = if off == 0 {
-            dirents.push(get_dirent_from(&".", 0)?);
-            dirents.push(get_dirent_from(&"..", 1)?);
+            dirents.push(get_dirent_from(".", 0)?);
+            dirents.push(get_dirent_from("..", 1)?);
             off
         } else { off - 1 } as usize;
 
