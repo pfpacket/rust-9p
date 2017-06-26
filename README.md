@@ -40,7 +40,7 @@ sudo mount -t 9p -o version=9p2000.L,trans=tcp,port=564,uname=$USER 127.0.0.1 /m
 ```
 
 | Option Name | Value |
-|:-----------:|::|
+|---|---|
 | version | version must be 9p2000.L |
 | trans | trans must be tcp |
 | port | port number |
