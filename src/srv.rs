@@ -50,7 +50,7 @@ impl<T> Fid<T> {
 /// Implementors can represent an error condition by returning an `Err`.
 /// Otherwise, they must return `Fcall` with the required fields filled.
 ///
-/// The default implementation, returning ENOSYS error, is provided to the all methods
+/// The default implementation, returning EOPNOTSUPP error, is provided to the all methods
 /// except Rversion.
 /// The default implementation of Rversion returns a message accepting 9P2000.L.
 ///
@@ -65,63 +65,63 @@ pub trait Filesystem {
 
     // 9P2000.L
     fn rstatfs(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rlopen(&mut self, _: &mut Fid<Self::Fid>, _flags: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rlcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32, _mode: u32, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rsymlink(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _sym: &str, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rmknod(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _major: u32, _minor: u32, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rrename(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rreadlink(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: GetattrMask)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: SetattrMask, _stat: &SetAttr)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rxattrwalk(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rxattrcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _attr_size: u64, _flags: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rreaddir(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rfsync(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Getlock)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rlink(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rmkdir(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rrenameat(&mut self, _: &mut Fid<Self::Fid>, _oldname: &str, _: &mut Fid<Self::Fid>, _newname: &str)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
 
     // 9P2000.u subset
     fn rauth(&mut self, _: &mut Fid<Self::Fid>, _uname: &str, _aname: &str, _n_uname: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rattach(&mut self, _: &mut Fid<Self::Fid>, _afid: Option<&mut Fid<Self::Fid>>, _uname: &str, _aname: &str, _n_uname: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
 
     // 9P2000 subset
     fn rflush(&mut self, _old: Option<&mut Fcall>)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rwalk(&mut self, _: &mut Fid<Self::Fid>, _new: &mut Fid<Self::Fid>, _wnames: &[String])
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rclunk(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rremove(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(ENOSYS)) }
+        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
     fn rversion(&mut self, ms: u32, ver: &str) -> Result<Fcall> {
         match ver {
             P92000L => Ok(Fcall::Rversion { msize: ms, version: ver.to_owned() }),
