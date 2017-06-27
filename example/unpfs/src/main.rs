@@ -6,7 +6,7 @@ extern crate filetime;
 
 use std::fs;
 use std::path::PathBuf;
-use std::io::{Seek, SeekFrom, Read, Write};
+use std::io::{Seek, SeekFrom, Read, Write, BufReader, BufWriter};
 use std::os::unix::prelude::*;
 use rs9p::*;
 use rs9p::srv::{Fid, Filesystem};

@@ -2,7 +2,18 @@
 [package]
 name = "rust-9p"
 version = "0.0.1"
-authors = [ "afpacket <afpacket@gmail.com>" ]
+authors = ["Ryo Munakata (pfpacket) <afpacket@gmail.com>"]
+description = "Filesystems library using 9P2000.L protocol, an extended variant of 9P from Plan 9"
+documentation = "https://pfpacket.github.io/rust-9p/rs9p/index.html"
+repository = "https://github.com/pfpacket/rust-9p"
+readme = "README.md"
+keywords = ["9p", "Plan9", "v9fs", "filesystem", "network"]
+categories = ["filesystem", "network-programming"]
+license = "BSD-3-Clause"
+license-file = "LICENSE"
+
+[badges]
+travis-ci = { repository = "pfpacket/rust-9p", branch = "master" }
 
 [lib]
 name = "rs9p"
