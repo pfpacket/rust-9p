@@ -21,7 +21,7 @@ extern crate rs9p;
 
 ## unpfs
 unpfs is an example file server which just exports your filesystem.
-You can build unpfs with the following command below:
+You can build unpfs with the following commands below:
 
 ```bash
 cd example/unpfs/
@@ -34,7 +34,7 @@ cargo run --release "tcp\!0.0.0.0\!564" /exportdir
 # or
 # ./target/release/unpfs "tcp\!0.0.0.0\!564" /exportdir
 ```
-You are now ready to import/mount a remote filesystem.
+You are now ready to import/mount the remote filesystem.
 Let's mount it at `/mountdir`:
 
 ```bash
@@ -46,7 +46,7 @@ sudo mount -t 9p -o version=9p2000.L,trans=tcp,port=564,uname=$USER 127.0.0.1 /m
 | version | version must be 9p2000.L |
 | trans | trans must be tcp |
 | port | port number |
-| uname | user name for accessing fs server |
+| uname | user name for accessing file server |
 
 
 ## License
