@@ -1,23 +1,22 @@
-
 //! Server side 9P library.
 //!
 //! # Protocol
 //! 9P2000.L
 
-extern crate nix;
 extern crate byteorder;
+extern crate nix;
 
-use std::{thread, process};
-use std::net::TcpListener;
-use std::collections::HashMap;
-use std::sync::{Mutex, Arc};
 use self::byteorder::{ReadBytesExt, WriteBytesExt};
-use self::nix::sys::signal::{sigaction, Signal, SigAction, SigHandler, SaFlags, SigSet};
+use self::nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
+use std::collections::HashMap;
+use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
+use std::{process, thread};
 
-use fcall::*;
-use serialize;
 use error;
 use error::errno::*;
+use fcall::*;
+use serialize;
 use utils::{self, Result};
 
 /// Represents a fid of clients holding associated `Filesystem::Fid`.
@@ -32,17 +31,23 @@ pub struct Fid<T> {
 
 impl<T> Fid<T> {
     /// Get the raw fid.
-    pub fn fid(&self) -> u32 { self.fid }
+    pub fn fid(&self) -> u32 {
+        self.fid
+    }
     /// Unwrap and return a reference to the aux.
     ///
     /// # Panics
     /// Calling this method on an aux which is None will cause a panic.
-    pub fn aux(&self) -> &T { self.aux.as_ref().unwrap() }
+    pub fn aux(&self) -> &T {
+        self.aux.as_ref().unwrap()
+    }
     /// Unwrap and return a mutable reference to the aux.
     ///
     /// # Panics
     /// Calling this method on an aux which is None will cause a panic.
-    pub fn aux_mut(&mut self) -> &mut T { self.aux.as_mut().unwrap() }
+    pub fn aux_mut(&mut self) -> &mut T {
+        self.aux.as_mut().unwrap()
+    }
 }
 
 /// Filesystem server trait.
@@ -64,68 +69,175 @@ pub trait Filesystem {
     type Fid;
 
     // 9P2000.L
-    fn rstatfs(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rlopen(&mut self, _: &mut Fid<Self::Fid>, _flags: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rlcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32, _mode: u32, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rsymlink(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _sym: &str, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rmknod(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _major: u32, _minor: u32, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rrename(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rreadlink(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: GetattrMask)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rsetattr(&mut self, _: &mut Fid<Self::Fid>, _valid: SetattrMask, _stat: &SetAttr)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rxattrwalk(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rxattrcreate(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _attr_size: u64, _flags: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rreaddir(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rfsync(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Getlock)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rlink(&mut self, _: &mut Fid<Self::Fid>, _: &mut Fid<Self::Fid>, _name: &str)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rmkdir(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _mode: u32, _gid: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rrenameat(&mut self, _: &mut Fid<Self::Fid>, _oldname: &str, _: &mut Fid<Self::Fid>, _newname: &str)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
+    fn rstatfs(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rlopen(&mut self, _: &mut Fid<Self::Fid>, _flags: u32) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rlcreate(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+        _flags: u32,
+        _mode: u32,
+        _gid: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rsymlink(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+        _sym: &str,
+        _gid: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rmknod(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+        _mode: u32,
+        _major: u32,
+        _minor: u32,
+        _gid: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rrename(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rreadlink(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: GetattrMask) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rsetattr(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _valid: SetattrMask,
+        _stat: &SetAttr,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rxattrwalk(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rxattrcreate(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+        _attr_size: u64,
+        _flags: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rreaddir(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rfsync(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Getlock) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rlink(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rmkdir(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _name: &str,
+        _mode: u32,
+        _gid: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rrenameat(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _oldname: &str,
+        _: &mut Fid<Self::Fid>,
+        _newname: &str,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
 
     // 9P2000.u subset
-    fn rauth(&mut self, _: &mut Fid<Self::Fid>, _uname: &str, _aname: &str, _n_uname: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rattach(&mut self, _: &mut Fid<Self::Fid>, _afid: Option<&mut Fid<Self::Fid>>, _uname: &str, _aname: &str, _n_uname: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
+    fn rauth(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _uname: &str,
+        _aname: &str,
+        _n_uname: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rattach(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _afid: Option<&mut Fid<Self::Fid>>,
+        _uname: &str,
+        _aname: &str,
+        _n_uname: u32,
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
 
     // 9P2000 subset
-    fn rflush(&mut self, _old: Option<&mut Fcall>)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rwalk(&mut self, _: &mut Fid<Self::Fid>, _new: &mut Fid<Self::Fid>, _wnames: &[String])
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rclunk(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
-    fn rremove(&mut self, _: &mut Fid<Self::Fid>)
-        -> Result<Fcall> { Err(error::Error::No(EOPNOTSUPP)) }
+    fn rflush(&mut self, _old: Option<&mut Fcall>) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rwalk(
+        &mut self,
+        _: &mut Fid<Self::Fid>,
+        _new: &mut Fid<Self::Fid>,
+        _wnames: &[String],
+    ) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rclunk(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
+    fn rremove(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
+        Err(error::Error::No(EOPNOTSUPP))
+    }
     fn rversion(&mut self, ms: u32, ver: &str) -> Result<Fcall> {
         match ver {
-            P92000L => Ok(Fcall::Rversion { msize: ms, version: ver.to_owned() }),
-            _ => Err(error::Error::No(EPROTONOSUPPORT))
+            P92000L => Ok(Fcall::Rversion {
+                msize: ms,
+                version: ver.to_owned(),
+            }),
+            _ => Err(error::Error::No(EPROTONOSUPPORT)),
         }
     }
 }
@@ -137,7 +249,9 @@ struct ServerInstance<Fs: Filesystem, RwExt> {
 }
 
 impl<Fs, RwExt> ServerInstance<Fs, RwExt>
-    where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
+where
+    Fs: Filesystem,
+    RwExt: ReadBytesExt + WriteBytesExt,
 {
     fn new(fs: Fs, stream: RwExt) -> Result<ServerInstance<Fs, RwExt>> {
         let server = ServerInstance {
@@ -167,7 +281,9 @@ struct SpawnServerInstance<Fs: Filesystem, RwExt> {
 }
 
 impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
-    where Fs: Filesystem, RwExt: ReadBytesExt + WriteBytesExt
+where
+    Fs: Filesystem,
+    RwExt: ReadBytesExt + WriteBytesExt,
 {
     fn new(fs: Arc<Mutex<Fs>>, stream: RwExt) -> Result<SpawnServerInstance<Fs, RwExt>> {
         let server = SpawnServerInstance {
@@ -184,15 +300,18 @@ impl<Fs, RwExt> SpawnServerInstance<Fs, RwExt>
             let msg = serialize::read_msg(&mut self.stream)?;
 
             debug!("\t→ {:?}", msg);
-            let (fcall, tag) =
-                dispatch_once(msg, &mut *self.fs.lock().unwrap(), &mut self.fids)?;
+            let (fcall, tag) = dispatch_once(msg, &mut *self.fs.lock().unwrap(), &mut self.fids)?;
 
             utils::respond(&mut self.stream, tag, fcall)?;
         }
     }
 }
 
-fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut HashMap<u32, Fid<FsFid>>) -> Result<(Fcall, u16)> {
+fn dispatch_once<FsFid>(
+    msg: Msg,
+    fs: &mut Filesystem<Fid = FsFid>,
+    fsfids: &mut HashMap<u32, Fid<FsFid>>,
+) -> Result<(Fcall, u16)> {
     use Fcall::*;
 
     let mut fids = Vec::new();
@@ -205,7 +324,12 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
             }
         }
     }
-    let mut newfids: Vec<_> = msg.body.newfids().iter().map(|f| Fid { fid: *f, aux: None }).collect();
+    let mut newfids: Vec<_> = msg
+        .body
+        .newfids()
+        .iter()
+        .map(|f| Fid { fid: *f, aux: None })
+        .collect();
 
     let response = match msg.body {
         Tstatfs { fid: _ }                                                  => { fs.rstatfs(&mut fids[0]) },
@@ -246,10 +370,16 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
         Tclunk { fid: _ }   /* Drop the fid which the request contains */   => { fs.rclunk(&mut fids[0]).map(|e| { fids.clear(); e }) },
         Tremove { fid: _ }                                                  => { fs.rremove(&mut fids[0]) },
         _                                                                   => return res!(io_err!(Other, "Invalid 9P message received")),
-    }.unwrap_or_else(|e| Fcall::Rlerror { ecode: e.errno() as u32 });
+    }.unwrap_or_else(|e| Fcall::Rlerror {
+        ecode: e.errno() as u32,
+    });
 
-    for f in fids { fsfids.insert(f.fid, f); }
-    for f in newfids { fsfids.insert(f.fid, f); }
+    for f in fids {
+        fsfids.insert(f.fid, f);
+    }
+    for f in newfids {
+        fsfids.insert(f.fid, f);
+    }
 
     Ok((response, msg.tag))
 }
@@ -259,17 +389,22 @@ fn dispatch_once<FsFid>(msg: Msg, fs: &mut Filesystem<Fid=FsFid>, fsfids: &mut H
 /// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = utils::parse_proto(addr).ok_or(
-        io_err!(InvalidInput, "Invalid protocol or address")
-    )?;
+    let (proto, sockaddr) =
+        utils::parse_proto(addr).ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
 
     if proto != "tcp" {
-        return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
+        return res!(io_err!(
+            InvalidInput,
+            format!("Unsupported protocol: {}", proto)
+        ));
     }
 
     // Do not wait for child processes
     unsafe {
-        sigaction(Signal::SIGCHLD, &SigAction::new(SigHandler::SigIgn, SaFlags::empty(), SigSet::empty()))?;
+        sigaction(
+            Signal::SIGCHLD,
+            &SigAction::new(SigHandler::SigIgn, SaFlags::empty(), SigSet::empty()),
+        )?;
     }
 
     let listener = TcpListener::bind(&sockaddr[..])?;
@@ -278,7 +413,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
         let (stream, remote) = listener.accept()?;
 
         match nix::unistd::fork()? {
-            nix::unistd::ForkResult::Parent { .. } => {},
+            nix::unistd::ForkResult::Parent { .. } => {}
             nix::unistd::ForkResult::Child => {
                 info!("ServerProcess={} starts", remote);
 
@@ -297,11 +432,14 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.
 pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) -> Result<()> {
-    let (proto, sockaddr) = utils::parse_proto(addr)
-        .ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
+    let (proto, sockaddr) =
+        utils::parse_proto(addr).ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
 
     if proto != "tcp" {
-        return res!(io_err!(InvalidInput, format!("Unsupported protocol: {}", proto)));
+        return res!(io_err!(
+            InvalidInput,
+            format!("Unsupported protocol: {}", proto)
+        ));
     }
 
     let arc_fs = Arc::new(Mutex::new(filesystem));
@@ -311,14 +449,16 @@ pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) ->
         let (stream, remote) = listener.accept()?;
         let (fs, thread_name) = (arc_fs.clone(), remote.to_string());
 
-        let _ = thread::Builder::new().name(thread_name.clone()).spawn(move || {
-            info!("ServerThread={:?} started", thread_name);
+        let _ = thread::Builder::new()
+            .name(thread_name.clone())
+            .spawn(move || {
+                info!("ServerThread={:?} started", thread_name);
 
-            let result = utils::setup_tcp_stream(&stream)
-                .map_err(From::from)
-                .and_then(|_| SpawnServerInstance::new(fs, stream)?.dispatch());
+                let result = utils::setup_tcp_stream(&stream)
+                    .map_err(From::from)
+                    .and_then(|_| SpawnServerInstance::new(fs, stream)?.dispatch());
 
-            info!("ServerThread={:?} finished: {:?}", thread_name, result);
-        });
+                info!("ServerThread={:?} finished: {:?}", thread_name, result);
+            });
     }
 }

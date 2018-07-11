@@ -1,4 +1,3 @@
-
 //! Filesystems library using 9P2000.L protocol, an extended variant of 9P from Plan 9.
 //!
 //! 9P protocol is originally developed for Plan 9 distributed OS.
@@ -28,9 +27,9 @@ pub mod fcall;
 pub mod serialize;
 pub mod srv;
 
-pub use utils::Result;
-pub use error::Error;
-pub use error::errno as errno;
+pub use error::errno;
 pub use error::string as errstr;
+pub use error::Error;
 pub use fcall::*;
 pub use srv::{srv, srv_spawn};
+pub use utils::Result;

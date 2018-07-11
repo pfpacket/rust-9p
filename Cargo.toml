@@ -9,7 +9,6 @@ repository = "https://github.com/pfpacket/rust-9p"
 readme = "README.md"
 keywords = ["9p", "Plan9", "v9fs", "filesystem", "network"]
 categories = ["filesystem", "network-programming"]
-license = "BSD-3-Clause"
 license-file = "LICENSE"
 
 [badges]
@@ -21,7 +20,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 log = "0.3"
-num-traits = "0.1"
+num-traits = "0.2"
 nix = "0.8"
 byteorder = "1"
 bitflags = "0.9"
