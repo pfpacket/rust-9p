@@ -30,9 +30,9 @@ cargo build --verbose --release
 and run unpfs with the following command to export `/exportdir`:
 
 ```bash
-cargo run --release "tcp\!0.0.0.0\!564" /exportdir
+cargo run --release 'tcp!0.0.0.0!564' /exportdir
 # or
-# ./target/release/unpfs "tcp\!0.0.0.0\!564" /exportdir
+# ./target/release/unpfs 'tcp!0.0.0.0!564' /exportdir
 ```
 You are now ready to import/mount the remote filesystem.
 Let's mount it at `/mountdir`:
