@@ -328,7 +328,7 @@ impl From<nix::sys::statvfs::vfs::Statvfs> for Statfs {
             bavail: buf.f_bavail,
             files: buf.f_files,
             ffree: buf.f_ffree,
-            fsid: buf.f_fsid,
+            fsid: buf.f_fsid as u64,
             namelen: buf.f_namemax as u32,
         }
     }
