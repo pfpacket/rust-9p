@@ -4,12 +4,28 @@ extern crate nix;
 extern crate rs9p;
 
 use self::filetime::FileTime;
+use nix::libc::{O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use rs9p::srv::{Fid, Filesystem};
 use rs9p::*;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::unix::prelude::*;
 use std::path::PathBuf;
+
+// Some clients will incorrectly set bits in 9p flags that don't make sense.
+// For exmaple, the linux 9p kernel client propagates O_DIRECT to TCREATE and TOPEN
+// and from there to the server.
+// Processes on client machines set O_DIRECT to bypass the cache, but if
+// the server uses O_DIRECT in the open or create, then subsequent server
+// write and read system calls will fail, as O_DIRECT requires at minimum 512
+// byte aligned data, and the data is almost always not aligned.
+// While the linux kernel client is arguably broken, we won't be able
+// to fix every kernel out there, and this is surely not the only buggy client
+// we will see.
+// The fix is to enumerate the set of flags we support and then and that with
+// the flags received in a TCREATE or TOPEN. This nicely fixes a real problem
+// we are seeing with a file system benchmark.
+const UNIX_FLAGS: u32 = (O_WRONLY | O_RDONLY | O_RDWR | O_CREAT | O_TRUNC) as u32;
 
 #[macro_use]
 mod utils;
@@ -63,11 +79,13 @@ impl Filesystem for Unpfs {
             path.push(name);
             let qid = match get_qid(&path) {
                 Ok(qid) => qid,
-                Err(e) => if i == 0 {
-                    return Err(e);
-                } else {
-                    break;
-                },
+                Err(e) => {
+                    if i == 0 {
+                        return Err(e);
+                    } else {
+                        break;
+                    }
+                }
             };
             wqids.push(qid);
         }
@@ -161,7 +179,7 @@ impl Filesystem for Unpfs {
         let qid = get_qid(&fid.aux().realpath)?;
 
         if !qid.typ.contains(qt::DIR) {
-            let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
+            let oflags = nix::fcntl::OFlag::from_bits_truncate((flags & UNIX_FLAGS) as i32);
             let omode = nix::sys::stat::Mode::from_bits_truncate(0);
             let fd = nix::fcntl::open(&fid.aux().realpath, oflags, omode)?;
             fid.aux_mut().file = Some(unsafe { fs::File::from_raw_fd(fd) });
@@ -182,7 +200,7 @@ impl Filesystem for Unpfs {
         _gid: u32,
     ) -> Result<Fcall> {
         let path = fid.aux().realpath.join(name);
-        let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
+        let oflags = nix::fcntl::OFlag::from_bits_truncate((flags & UNIX_FLAGS) as i32);
         let omode = nix::sys::stat::Mode::from_bits_truncate(mode);
         let fd = nix::fcntl::open(&path, oflags, omode)?;
 
@@ -289,7 +307,8 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
             realroot: mountpoint,
         },
         addr,
-    ).and(Ok(0))
+    )
+    .and(Ok(0))
 }
 
 fn main() {
