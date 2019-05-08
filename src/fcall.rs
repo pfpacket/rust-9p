@@ -131,150 +131,132 @@ pub mod p92000 {
     }
 } // pub mod p92000
 
-/// File lock type, Flock.typ
-pub mod ltype {
-    bitflags! {
-        pub struct LockType: u8 {
-            const RDLOCK    = 0;
-            const WRLOCK    = 1;
-            const UNLOCK    = 2;
-        }
+bitflags! {
+    /// File lock type, Flock.typ
+    pub struct LockType: u8 {
+        const RDLOCK    = 0;
+        const WRLOCK    = 1;
+        const UNLOCK    = 2;
     }
 }
-pub use self::ltype::LockType;
 
-/// File lock flags, Flock.flags
-pub mod lflag {
-    bitflags! {
-        pub struct LockFlag: u32 {
-            #[doc = "Blocking request"]
-            const BLOCK     = 1;
-            #[doc = "Reserved for future use"]
-            const RECLAIM   = 2;
-        }
+bitflags! {
+    /// File lock flags, Flock.flags
+    pub struct LockFlag: u32 {
+        #[doc = "Blocking request"]
+        const BLOCK     = 1;
+        #[doc = "Reserved for future use"]
+        const RECLAIM   = 2;
     }
 }
-pub use self::lflag::LockFlag;
 
-/// File lock status
-pub mod lstatus {
-    bitflags! {
-        pub struct LockStatus: u8 {
-            const SUCCESS   = 0;
-            const BLOCKED   = 1;
-            const ERROR     = 2;
-            const GRACE     = 3;
-        }
+bitflags! {
+    /// File lock status
+    pub struct LockStatus: u8 {
+        const SUCCESS   = 0;
+        const BLOCKED   = 1;
+        const ERROR     = 2;
+        const GRACE     = 3;
     }
 }
-pub use self::lstatus::LockStatus;
 
-/// Bits in Qid.typ
-///
-/// QidType can be constructed from std::fs::FileType via From trait
-///
-/// # Protocol
-/// 9P2000/9P2000.L
-pub mod qt {
-    bitflags! {
-        pub struct QidType: u8 {
-            #[doc = "Type bit for directories"]
-            const DIR       = 0x80;
-            #[doc = "Type bit for append only files"]
-            const APPEND    = 0x40;
-            #[doc = "Type bit for exclusive use files"]
-            const EXCL      = 0x20;
-            #[doc = "Type bit for mounted channel"]
-            const MOUNT     = 0x10;
-            #[doc = "Type bit for authentication file"]
-            const AUTH      = 0x08;
-            #[doc = "Type bit for not-backed-up file"]
-            const TMP       = 0x04;
-            #[doc = "Type bits for symbolic links (9P2000.u)"]
-            const SYMLINK   = 0x02;
-            #[doc = "Type bits for hard-link (9P2000.u)"]
-            const LINK      = 0x01;
-            #[doc = "Plain file"]
-            const FILE      = 0x00;
-        }
-    }
-
-    impl From<::std::fs::FileType> for QidType {
-        fn from(typ: ::std::fs::FileType) -> Self {
-            From::from(&typ)
-        }
-    }
-
-    impl<'a> From<&'a ::std::fs::FileType> for QidType {
-        fn from(typ: &'a ::std::fs::FileType) -> Self {
-            let mut qid_type = FILE;
-            if typ.is_dir() {
-                qid_type.insert(DIR)
-            }
-            if typ.is_symlink() {
-                qid_type.insert(SYMLINK)
-            }
-            qid_type
-        }
+bitflags! {
+    /// Bits in Qid.typ
+    ///
+    /// QidType can be constructed from std::fs::FileType via From trait
+    ///
+    /// # Protocol
+    /// 9P2000/9P2000.L
+    pub struct QidType: u8 {
+        #[doc = "Type bit for directories"]
+        const DIR       = 0x80;
+        #[doc = "Type bit for append only files"]
+        const APPEND    = 0x40;
+        #[doc = "Type bit for exclusive use files"]
+        const EXCL      = 0x20;
+        #[doc = "Type bit for mounted channel"]
+        const MOUNT     = 0x10;
+        #[doc = "Type bit for authentication file"]
+        const AUTH      = 0x08;
+        #[doc = "Type bit for not-backed-up file"]
+        const TMP       = 0x04;
+        #[doc = "Type bits for symbolic links (9P2000.u)"]
+        const SYMLINK   = 0x02;
+        #[doc = "Type bits for hard-link (9P2000.u)"]
+        const LINK      = 0x01;
+        #[doc = "Plain file"]
+        const FILE      = 0x00;
     }
 }
-pub use self::qt::QidType;
 
-/// Bits in `mask` and `valid` of `Tgetattr` and `Rgetattr`.
-///
-/// # Protocol
-/// 9P2000.L
-pub mod getattr {
-    bitflags! {
-        pub struct GetattrMask: u64 {
-            const MODE          = 0x00000001;
-            const NLINK         = 0x00000002;
-            const UID           = 0x00000004;
-            const GID           = 0x00000008;
-            const RDEV          = 0x00000010;
-            const ATIME         = 0x00000020;
-            const MTIME         = 0x00000040;
-            const CTIME         = 0x00000080;
-            const INO           = 0x00000100;
-            const SIZE          = 0x00000200;
-            const BLOCKS        = 0x00000400;
-
-            const BTIME         = 0x00000800;
-            const GEN           = 0x00001000;
-            const DATA_VERSION  = 0x00002000;
-
-            #[doc = "Mask for fields up to BLOCKS"]
-            const BASIC         =0x000007ff;
-            #[doc = "Mask for All fields above"]
-            const ALL           = 0x00003fff;
-        }
+impl From<::std::fs::FileType> for QidType {
+    fn from(typ: ::std::fs::FileType) -> Self {
+        From::from(&typ)
     }
 }
-pub use self::getattr::GetattrMask;
 
-/// Bits in `mask` of `Tsetattr`.
-///
-/// If a time bit is set without the corresponding SET bit, the current
-/// system time on the server is used instead of the value sent in the request.
-///
-/// # Protocol
-/// 9P2000.L
-pub mod setattr {
-    bitflags! {
-        pub struct SetattrMask: u32 {
-            const MODE      = 0x00000001;
-            const UID       = 0x00000002;
-            const GID       = 0x00000004;
-            const SIZE      = 0x00000008;
-            const ATIME     = 0x00000010;
-            const MTIME     = 0x00000020;
-            const CTIME     = 0x00000040;
-            const ATIME_SET = 0x00000080;
-            const MTIME_SET = 0x00000100;
+impl<'a> From<&'a ::std::fs::FileType> for QidType {
+    fn from(typ: &'a ::std::fs::FileType) -> Self {
+        let mut qid_type = QidType::FILE;
+        if typ.is_dir() {
+            qid_type.insert(QidType::DIR)
         }
+        if typ.is_symlink() {
+            qid_type.insert(QidType::SYMLINK)
+        }
+        qid_type
     }
 }
-pub use self::setattr::SetattrMask;
+
+bitflags! {
+    /// Bits in `mask` and `valid` of `Tgetattr` and `Rgetattr`.
+    ///
+    /// # Protocol
+    /// 9P2000.L
+    pub struct GetattrMask: u64 {
+        const MODE          = 0x00000001;
+        const NLINK         = 0x00000002;
+        const UID           = 0x00000004;
+        const GID           = 0x00000008;
+        const RDEV          = 0x00000010;
+        const ATIME         = 0x00000020;
+        const MTIME         = 0x00000040;
+        const CTIME         = 0x00000080;
+        const INO           = 0x00000100;
+        const SIZE          = 0x00000200;
+        const BLOCKS        = 0x00000400;
+
+        const BTIME         = 0x00000800;
+        const GEN           = 0x00001000;
+        const DATA_VERSION  = 0x00002000;
+
+        #[doc = "Mask for fields up to BLOCKS"]
+        const BASIC         =0x000007ff;
+        #[doc = "Mask for All fields above"]
+        const ALL           = 0x00003fff;
+    }
+}
+
+bitflags! {
+    /// Bits in `mask` of `Tsetattr`.
+    ///
+    /// If a time bit is set without the corresponding SET bit, the current
+    /// system time on the server is used instead of the value sent in the request.
+    ///
+    /// # Protocol
+    /// 9P2000.L
+    pub struct SetattrMask: u32 {
+        const MODE      = 0x00000001;
+        const UID       = 0x00000002;
+        const GID       = 0x00000004;
+        const SIZE      = 0x00000008;
+        const ATIME     = 0x00000010;
+        const MTIME     = 0x00000020;
+        const CTIME     = 0x00000040;
+        const ATIME_SET = 0x00000080;
+        const MTIME_SET = 0x00000100;
+    }
+}
 
 /// Server side data type for path tracking
 ///
@@ -318,18 +300,18 @@ pub struct Statfs {
     pub namelen: u32,
 }
 
-impl From<nix::sys::statvfs::vfs::Statvfs> for Statfs {
-    fn from(buf: nix::sys::statvfs::vfs::Statvfs) -> Statfs {
+impl From<nix::sys::statvfs::Statvfs> for Statfs {
+    fn from(buf: nix::sys::statvfs::Statvfs) -> Statfs {
         Statfs {
             typ: 0,
-            bsize: buf.f_bsize as u32,
-            blocks: buf.f_blocks,
-            bfree: buf.f_bfree,
-            bavail: buf.f_bavail,
-            files: buf.f_files,
-            ffree: buf.f_ffree,
-            fsid: buf.f_fsid as u64,
-            namelen: buf.f_namemax as u32,
+            bsize: buf.block_size() as u32,
+            blocks: buf.blocks(),
+            bfree: buf.blocks_free(),
+            bavail: buf.blocks_available(),
+            files: buf.files(),
+            ffree: buf.files_free(),
+            fsid: buf.filesystem_id() as u64,
+            namelen: buf.name_max() as u32,
         }
     }
 }

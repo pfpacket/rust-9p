@@ -45,6 +45,7 @@ impl Filesystem for Unpfs {
         _n_uname: u32,
     ) -> Result<Fcall> {
         fid.aux = Some(UnpfsFid::new(&self.realroot));
+
         Ok(Fcall::Rattach {
             qid: get_qid(&self.realroot)?,
         })
@@ -78,6 +79,7 @@ impl Filesystem for Unpfs {
 
     fn rgetattr(&mut self, fid: &mut Fid<Self::Fid>, req_mask: GetattrMask) -> Result<Fcall> {
         let attr = fs::symlink_metadata(&fid.aux().realpath)?;
+
         Ok(Fcall::Rgetattr {
             valid: req_mask,
             qid: qid_from_attr(&attr),
@@ -92,43 +94,49 @@ impl Filesystem for Unpfs {
         stat: &SetAttr,
     ) -> Result<Fcall> {
         let filepath = &fid.aux().realpath;
-        if valid.contains(setattr::MODE) {
+
+        if valid.contains(SetattrMask::MODE) {
             fs::set_permissions(filepath, PermissionsExt::from_mode(stat.mode))?;
         }
-        if valid.intersects(setattr::UID | setattr::GID) {
-            let uid = if valid.contains(setattr::UID) {
-                Some(stat.uid)
+
+        if valid.intersects(SetattrMask::UID | SetattrMask::GID) {
+            let uid = if valid.contains(SetattrMask::UID) {
+                Some(nix::unistd::Uid::from_raw(stat.uid))
             } else {
                 None
             };
-            let gid = if valid.contains(setattr::GID) {
-                Some(stat.gid)
+            let gid = if valid.contains(SetattrMask::GID) {
+                Some(nix::unistd::Gid::from_raw(stat.gid))
             } else {
                 None
             };
             nix::unistd::chown(filepath, uid, gid)?;
         }
-        if valid.contains(setattr::SIZE) {
+
+        if valid.contains(SetattrMask::SIZE) {
             let _ = fs::File::open(filepath)?.set_len(stat.size);
         }
-        if valid.intersects(setattr::ATIME_SET | setattr::MTIME_SET) {
-            let atime = if valid.contains(setattr::ATIME_SET) {
-                FileTime::from_seconds_since_1970(stat.atime.sec, stat.atime.nsec as u32)
+
+        if valid.intersects(SetattrMask::ATIME_SET | SetattrMask::MTIME_SET) {
+            let atime = if valid.contains(SetattrMask::ATIME_SET) {
+                FileTime::from_unix_time(stat.atime.sec as i64, stat.atime.nsec as u32)
             } else {
                 FileTime::from_last_access_time(&fs::metadata(filepath)?)
             };
-            let mtime = if valid.contains(setattr::MTIME_SET) {
-                FileTime::from_seconds_since_1970(stat.mtime.sec, stat.mtime.nsec as u32)
+            let mtime = if valid.contains(SetattrMask::MTIME_SET) {
+                FileTime::from_unix_time(stat.mtime.sec as i64, stat.mtime.nsec as u32)
             } else {
                 FileTime::from_last_modification_time(&fs::metadata(filepath)?)
             };
             filetime::set_file_times(filepath, atime, mtime)?
         }
+
         Ok(Fcall::Rsetattr)
     }
 
     fn rreadlink(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
         let link = fs::read_link(&fid.aux().realpath)?;
+
         Ok(Fcall::Rreadlink {
             target: link.to_string_lossy().into_owned(),
         })
@@ -160,7 +168,7 @@ impl Filesystem for Unpfs {
     fn rlopen(&mut self, fid: &mut Fid<Self::Fid>, flags: u32) -> Result<Fcall> {
         let qid = get_qid(&fid.aux().realpath)?;
 
-        if !qid.typ.contains(qt::DIR) {
+        if !qid.typ.contains(QidType::DIR) {
             let oflags = nix::fcntl::OFlag::from_bits_truncate(flags as i32);
             let omode = nix::sys::stat::Mode::from_bits_truncate(0);
             let fd = nix::fcntl::open(&fid.aux().realpath, oflags, omode)?;
@@ -209,6 +217,7 @@ impl Filesystem for Unpfs {
     fn rwrite(&mut self, fid: &mut Fid<Self::Fid>, offset: u64, data: &Data) -> Result<Fcall> {
         let file = fid.aux_mut().file.as_mut().ok_or(INVALID_FID!())?;
         file.seek(SeekFrom::Start(offset))?;
+
         Ok(Fcall::Rwrite {
             count: file.write(&data.0)? as u32,
         })
@@ -223,6 +232,7 @@ impl Filesystem for Unpfs {
     ) -> Result<Fcall> {
         let path = dfid.aux().realpath.join(name);
         fs::create_dir(&path)?;
+
         Ok(Fcall::Rmkdir {
             qid: get_qid(&path)?,
         })
@@ -238,15 +248,18 @@ impl Filesystem for Unpfs {
         let oldpath = olddir.aux().realpath.join(oldname);
         let newpath = newdir.aux().realpath.join(newname);
         fs::rename(&oldpath, &newpath)?;
+
         Ok(Fcall::Rrenameat)
     }
 
     fn runlinkat(&mut self, dirfid: &mut Fid<Self::Fid>, name: &str, _flags: u32) -> Result<Fcall> {
         let path = dirfid.aux().realpath.join(name);
+
         match fs::symlink_metadata(&path)? {
             ref attr if attr.is_dir() => fs::remove_dir(&path)?,
             _ => fs::remove_file(&path)?,
         };
+
         Ok(Fcall::Runlinkat)
     }
 
@@ -256,6 +269,7 @@ impl Filesystem for Unpfs {
             .as_mut()
             .ok_or(INVALID_FID!())?
             .sync_all()?;
+
         Ok(Fcall::Rfsync)
     }
 
@@ -264,7 +278,8 @@ impl Filesystem for Unpfs {
     }
 
     fn rstatfs(&mut self, fid: &mut Fid<Self::Fid>) -> Result<Fcall> {
-        let fs = nix::sys::statvfs::vfs::Statvfs::for_path(&fid.aux().realpath)?;
+        let fs = nix::sys::statvfs::statvfs(&fid.aux().realpath)?;
+
         Ok(Fcall::Rstatfs {
             statfs: From::from(fs),
         })
@@ -293,11 +308,13 @@ fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
+
     let args = std::env::args().collect();
     let exit_code = unpfs_main(args).unwrap_or_else(|e| {
         println!("Error: {}", e);
         -1
     });
+
     std::process::exit(exit_code);
 }

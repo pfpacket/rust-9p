@@ -8,9 +8,9 @@ authors = [ "afpacket <afpacket@gmail.com>" ]
 name = "unpfs"
 
 [dependencies]
-nix = "0.8"
-env_logger = "0.4"
-filetime = "0.1"
+nix = "0.13"
+env_logger = "0.6"
+filetime = "0.2"
 
 [dependencies.rust-9p]
 path = "../../"
