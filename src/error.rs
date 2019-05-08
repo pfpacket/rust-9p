@@ -9,7 +9,6 @@
 extern crate nix;
 
 use error::errno::*;
-use std::error as stderror;
 use std::io::ErrorKind::*;
 use std::{fmt, io};
 
@@ -70,7 +69,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl stderror::Error for Error {
+impl std::error::Error for Error {
     fn description(&self) -> &str {
         match *self {
             Error::No(ref e) => e.desc(),
@@ -78,7 +77,7 @@ impl stderror::Error for Error {
         }
     }
 
-    fn cause(&self) -> Option<&stderror::Error> {
+    fn cause(&self) -> Option<&std::error::Error> {
         match *self {
             Error::No(_) => None,
             Error::Io(ref e) => Some(e),
@@ -106,7 +105,7 @@ impl From<nix::errno::Errno> for Error {
 
 impl From<nix::Error> for Error {
     fn from(e: nix::Error) -> Self {
-        Error::No(e.errno())
+        Error::No(e.as_errno().unwrap_or(UnknownErrno))
     }
 }
 

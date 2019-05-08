@@ -19,10 +19,10 @@ name = "rs9p"
 crate-type = ["rlib"]
 
 [dependencies]
-log = "0.3"
+log = "0.4"
 num-traits = "0.2"
-nix = "0.8"
+nix = "0.13"
 byteorder = "1"
-bitflags = "0.9"
+bitflags = "1.0"
 enum_primitive = "*"
 net2 = { version = "0.2", features = ["nightly"] }
