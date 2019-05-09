@@ -1,11 +1,8 @@
 //! Serialize/deserialize 9P messages into/from binary.
 
-extern crate byteorder;
-extern crate num_traits;
-
-use self::byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use self::num_traits::FromPrimitive;
-use fcall::*;
+use crate::fcall::*;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use num_traits::FromPrimitive;
 use std::io::{Cursor, Read, Result};
 use std::mem;
 use std::ops::{Shl, Shr, Try};
@@ -263,7 +260,7 @@ impl Encodable for DirEntryData {
             .data()
             .iter()
             .fold(Encoder::new(w) << &self.size(), |acc, e| acc << e))?
-            .bytes_written())
+        .bytes_written())
     }
 }
 
@@ -306,13 +303,13 @@ impl<T: Encodable> Encodable for Vec<T> {
         Ok((self
             .iter()
             .fold(Encoder::new(w) << &(self.len() as u16), |acc, s| acc << s))?
-            .bytes_written())
+        .bytes_written())
     }
 }
 
 impl Encodable for Msg {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        use Fcall::*;
+        use crate::Fcall::*;
 
         let typ = MsgType::from(&self.body);
         let buf = Encoder::new(Vec::with_capacity(8196))
@@ -661,7 +658,7 @@ impl<T: Decodable> Decodable for Vec<T> {
 
 impl Decodable for Msg {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
-        use MsgType::*;
+        use crate::MsgType::*;
 
         let size = r.read_u32::<LittleEndian>()? - 4;
         let mut buf = Cursor::new(read_exact(r, size as usize)?);

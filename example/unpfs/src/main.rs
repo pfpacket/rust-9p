@@ -1,9 +1,4 @@
-extern crate env_logger;
-extern crate filetime;
-extern crate nix;
-extern crate rs9p;
-
-use self::filetime::FileTime;
+use filetime::FileTime;
 use nix::libc::{O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use rs9p::srv::{Fid, Filesystem};
 use rs9p::*;
@@ -11,6 +6,9 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::unix::prelude::*;
 use std::path::PathBuf;
+
+mod utils;
+use crate::utils::*;
 
 // Some clients will incorrectly set bits in 9p flags that don't make sense.
 // For exmaple, the linux 9p kernel client propagates O_DIRECT to TCREATE and TOPEN
@@ -26,10 +24,6 @@ use std::path::PathBuf;
 // the flags received in a TCREATE or TOPEN. This nicely fixes a real problem
 // we are seeing with a file system benchmark.
 const UNIX_FLAGS: u32 = (O_WRONLY | O_RDONLY | O_RDWR | O_CREAT | O_TRUNC) as u32;
-
-#[macro_use]
-mod utils;
-use utils::*;
 
 struct UnpfsFid {
     realpath: PathBuf,

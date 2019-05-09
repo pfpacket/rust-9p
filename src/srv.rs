@@ -3,21 +3,18 @@
 //! # Protocol
 //! 9P2000.L
 
-extern crate byteorder;
-extern crate nix;
-
-use self::byteorder::{ReadBytesExt, WriteBytesExt};
-use self::nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
+use byteorder::{ReadBytesExt, WriteBytesExt};
+use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
 use std::collections::HashMap;
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::{process, thread};
 
-use error;
-use error::errno::*;
-use fcall::*;
-use serialize;
-use utils::{self, Result};
+use crate::error;
+use crate::error::errno::*;
+use crate::fcall::*;
+use crate::serialize;
+use crate::utils::{self, Result};
 
 /// Represents a fid of clients holding associated `Filesystem::Fid`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -312,7 +309,7 @@ fn dispatch_once<FsFid>(
     fs: &mut Filesystem<Fid = FsFid>,
     fsfids: &mut HashMap<u32, Fid<FsFid>>,
 ) -> Result<(Fcall, u16)> {
-    use Fcall::*;
+    use crate::Fcall::*;
 
     let mut fids = Vec::new();
     for fid in msg.body.fids().iter().map(|f| fsfids.remove(&f).ok_or(f)) {

@@ -15,10 +15,6 @@
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate enum_primitive;
 
 #[macro_use]
 mod utils;
@@ -27,9 +23,9 @@ pub mod fcall;
 pub mod serialize;
 pub mod srv;
 
-pub use error::errno;
-pub use error::string as errstr;
-pub use error::Error;
-pub use fcall::*;
-pub use srv::{srv, srv_spawn};
-pub use utils::Result;
+pub use crate::error::errno;
+pub use crate::error::string as errstr;
+pub use crate::error::Error;
+pub use crate::fcall::*;
+pub use crate::srv::{srv, srv_spawn};
+pub use crate::utils::Result;

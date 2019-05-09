@@ -3,11 +3,12 @@
 //! # Protocol
 //! 9P2000.L
 
-extern crate nix;
-
 use std::fs;
 use std::mem::{size_of, size_of_val};
 use std::os::unix::fs::MetadataExt;
+
+use bitflags::bitflags;
+use enum_primitive::*;
 
 /// 9P2000 version string
 pub const P92000: &'static str = "9P2000";
@@ -576,7 +577,7 @@ impl MsgType {
 
     /// If the message type is R-message
     pub fn is_r(&self) -> bool {
-        use MsgType::*;
+        use crate::MsgType::*;
         match *self {
             Rlerror | Rstatfs | Rlopen | Rlcreate | Rsymlink | Rmknod | Rrename | Rreadlink
             | Rgetattr | Rsetattr | Rxattrwalk | Rxattrcreate | Rreaddir | Rfsync | Rlock

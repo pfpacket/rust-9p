@@ -6,9 +6,7 @@
 //! By contrast, in 9P2000.L, errors are represented as numbers (errno).
 //! Using the Linux system errno numbers is the expected behaviour.
 
-extern crate nix;
-
-use error::errno::*;
+use crate::error::errno::*;
 use std::io::ErrorKind::*;
 use std::{fmt, io};
 
@@ -114,8 +112,7 @@ impl From<nix::Error> for Error {
 /// # Protocol
 /// 9P2000.L
 pub mod errno {
-    extern crate nix;
-    pub use self::nix::errno::Errno::*;
+    pub use nix::errno::Errno::*;
 }
 
 /// 9P error strings imported from Linux.

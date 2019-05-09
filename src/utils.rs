@@ -1,14 +1,11 @@
-extern crate byteorder;
-extern crate net2;
-
 use std::net::TcpStream;
 //use std::time::Duration;
-use self::byteorder::WriteBytesExt;
-use self::net2::TcpStreamExt;
+use byteorder::WriteBytesExt;
+use net2::TcpStreamExt;
 
-use error;
-use fcall::*;
-use serialize;
+use crate::error;
+use crate::fcall::*;
+use crate::serialize;
 
 pub type Result<T> = ::std::result::Result<T, error::Error>;
 

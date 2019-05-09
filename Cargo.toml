@@ -2,6 +2,7 @@
 [package]
 name = "rust-9p"
 version = "0.0.1"
+edition = "2018"
 authors = ["Ryo Munakata (pfpacket) <afpacket@gmail.com>"]
 description = "Filesystems library using 9P2000.L protocol, an extended variant of 9P from Plan 9"
 documentation = "https://pfpacket.github.io/rust-9p/rs9p/index.html"
