@@ -31,20 +31,29 @@ and run unpfs with the following command to export `/exportdir`:
 
 ```bash
 cargo run --release 'tcp!0.0.0.0!564' /exportdir
+
 # or
-# ./target/release/unpfs 'tcp!0.0.0.0!564' /exportdir
+./target/release/unpfs 'tcp!0.0.0.0!564' /exportdir
+
+
+# if you want to use Unix domain socket:
+# port number doesn't matter
+cargo run --release 'unix!/tmp/unpfs-socket!0' /exportdir
 ```
 You are now ready to import/mount the remote filesystem.
 Let's mount it at `/mountdir`:
 
 ```bash
+# TCP
 sudo mount -t 9p -o version=9p2000.L,trans=tcp,port=564,uname=$USER 127.0.0.1 /mountdir
+# Unix domain socket
+sudo mount -t 9p -o version=9p2000.L,trans=unix,uname=$USER /tmp/unpfs-socket:0 /mountdir
 ```
 
-| Option Name | Value |
+| Mount option | Value |
 |---|---|
-| version | version must be 9p2000.L |
-| trans | trans must be tcp |
+| version | version must be "9p2000.L" |
+| trans | trans must be "tcp" or "unix" |
 | port | port number |
 | uname | user name for accessing file server |
 
