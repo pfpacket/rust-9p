@@ -7,8 +7,8 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler, SigSet, Signal};
 use std::collections::HashMap;
 use std::net::TcpListener;
+use std::os::unix::net::UnixListener;
 use std::sync::{Arc, Mutex};
-use std::{process, thread};
 
 use crate::error;
 use crate::error::errno::*;
@@ -381,6 +381,37 @@ fn dispatch_once<FsFid>(
     Ok((response, msg.tag))
 }
 
+// Just for ReadBytesExt and WriteBytesExt
+trait ReadWriteBytesExt: std::io::Read + std::io::Write {}
+
+impl<T> ReadWriteBytesExt for T where T: std::io::Read + std::io::Write {}
+
+trait SocketListener {
+    fn accept_client(&self) -> Result<(Box<dyn ReadWriteBytesExt + Send>, String)>;
+}
+
+impl SocketListener for TcpListener {
+    fn accept_client(&self) -> Result<(Box<dyn ReadWriteBytesExt + Send>, String)> {
+        let (stream, remote) = self.accept()?;
+        utils::setup_tcp_stream(&stream)?;
+
+        return Ok((Box::new(stream), remote.to_string()));
+    }
+}
+
+impl SocketListener for UnixListener {
+    fn accept_client(&self) -> Result<(Box<dyn ReadWriteBytesExt + Send>, String)> {
+        let (stream, remote) = self.accept()?;
+        let remote = remote
+            .as_pathname()
+            .and_then(std::path::Path::to_str)
+            .unwrap_or(":unnamed:")
+            .to_owned();
+
+        return Ok((Box::new(stream), remote));
+    }
+}
+
 /// Start the 9P filesystem (fork child processes).
 ///
 /// This function forks a child process to handle its 9P messages
@@ -389,12 +420,16 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     let (proto, sockaddr) =
         utils::parse_proto(addr).ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
 
-    if proto != "tcp" {
-        return res!(io_err!(
-            InvalidInput,
-            format!("Unsupported protocol: {}", proto)
-        ));
-    }
+    let listener: Box<dyn SocketListener> = match proto {
+        "tcp" => Box::new(TcpListener::bind(&sockaddr[..])?),
+        "unix" => Box::new(UnixListener::bind(&sockaddr[..])?),
+        _ => {
+            return res!(io_err!(
+                InvalidInput,
+                format!("Unsupported protocol: {}", proto)
+            ));
+        }
+    };
 
     // Do not wait for child processes
     unsafe {
@@ -404,21 +439,18 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
         )?;
     }
 
-    let listener = TcpListener::bind(&sockaddr[..])?;
-
     loop {
-        let (stream, remote) = listener.accept()?;
+        let (stream, remote) = listener.accept_client()?;
 
         match nix::unistd::fork()? {
             nix::unistd::ForkResult::Parent { .. } => {}
             nix::unistd::ForkResult::Child => {
                 info!("ServerProcess={} starts", remote);
 
-                utils::setup_tcp_stream(&stream)?;
                 let result = ServerInstance::new(filesystem, stream)?.dispatch();
 
                 info!("ServerProcess={} finished: {:?}", remote, result);
-                process::exit(1);
+                std::process::exit(1);
             }
         }
     }
@@ -432,30 +464,29 @@ pub fn srv_spawn<Fs: Filesystem + Send + 'static>(filesystem: Fs, addr: &str) ->
     let (proto, sockaddr) =
         utils::parse_proto(addr).ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
 
-    if proto != "tcp" {
-        return res!(io_err!(
-            InvalidInput,
-            format!("Unsupported protocol: {}", proto)
-        ));
-    }
+    let listener: Box<dyn SocketListener> = match proto {
+        "tcp" => Box::new(TcpListener::bind(&sockaddr[..])?),
+        "unix" => Box::new(UnixListener::bind(&sockaddr[..])?),
+        _ => {
+            return res!(io_err!(
+                InvalidInput,
+                format!("Unsupported protocol: {}", proto)
+            ))
+        }
+    };
 
     let arc_fs = Arc::new(Mutex::new(filesystem));
-    let listener = TcpListener::bind(&sockaddr[..])?;
 
     loop {
-        let (stream, remote) = listener.accept()?;
-        let (fs, thread_name) = (arc_fs.clone(), remote.to_string());
+        let (stream, remote) = listener.accept_client()?;
+        let fs = arc_fs.clone();
 
-        let _ = thread::Builder::new()
-            .name(thread_name.clone())
-            .spawn(move || {
-                info!("ServerThread={:?} started", thread_name);
+        let _ = std::thread::Builder::new().spawn(move || {
+            info!("ServerThread={:?} started", remote);
 
-                let result = utils::setup_tcp_stream(&stream)
-                    .map_err(From::from)
-                    .and_then(|_| SpawnServerInstance::new(fs, stream)?.dispatch());
+            let result = SpawnServerInstance::new(fs, stream).and_then(|mut s| s.dispatch());
 
-                info!("ServerThread={:?} finished: {:?}", thread_name, result);
-            });
+            info!("ServerThread={} finished: {:?}", remote, result);
+        });
     }
 }
