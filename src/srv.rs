@@ -21,6 +21,7 @@ use crate::utils::{self, Result};
 pub struct Fid<T> {
     /// Raw client side fid.
     fid: u32,
+
     /// `Filesystem::Fid` associated with this fid.
     /// Changing this value affects the continuous callbacks.
     pub aux: Option<T>,
@@ -31,6 +32,7 @@ impl<T> Fid<T> {
     pub fn fid(&self) -> u32 {
         self.fid
     }
+
     /// Unwrap and return a reference to the aux.
     ///
     /// # Panics
@@ -38,6 +40,7 @@ impl<T> Fid<T> {
     pub fn aux(&self) -> &T {
         self.aux.as_ref().unwrap()
     }
+
     /// Unwrap and return a mutable reference to the aux.
     ///
     /// # Panics
@@ -69,9 +72,11 @@ pub trait Filesystem {
     fn rstatfs(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rlopen(&mut self, _: &mut Fid<Self::Fid>, _flags: u32) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rlcreate(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -82,6 +87,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rsymlink(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -91,6 +97,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rmknod(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -102,6 +109,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rrename(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -110,12 +118,15 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rreadlink(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rgetattr(&mut self, _: &mut Fid<Self::Fid>, _req_mask: GetattrMask) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rsetattr(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -124,6 +135,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rxattrwalk(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -132,6 +144,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rxattrcreate(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -141,18 +154,23 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rreaddir(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rfsync(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Flock) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rgetlock(&mut self, _: &mut Fid<Self::Fid>, _lock: &Getlock) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rlink(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -161,6 +179,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rmkdir(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -170,6 +189,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rrenameat(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -179,11 +199,14 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn runlinkat(&mut self, _: &mut Fid<Self::Fid>, _name: &str, _flags: u32) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
 
-    // 9P2000.u subset
+    /*
+     * 9P2000.u subset
+     */
     fn rauth(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -193,6 +216,7 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rattach(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -204,10 +228,13 @@ pub trait Filesystem {
         Err(error::Error::No(EOPNOTSUPP))
     }
 
-    // 9P2000 subset
+    /*
+     * 9P2000 subset
+     */
     fn rflush(&mut self, _old: Option<&mut Fcall>) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rwalk(
         &mut self,
         _: &mut Fid<Self::Fid>,
@@ -216,18 +243,23 @@ pub trait Filesystem {
     ) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rread(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _count: u32) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rwrite(&mut self, _: &mut Fid<Self::Fid>, _offset: u64, _data: &Data) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rclunk(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rremove(&mut self, _: &mut Fid<Self::Fid>) -> Result<Fcall> {
         Err(error::Error::No(EOPNOTSUPP))
     }
+
     fn rversion(&mut self, ms: u32, ver: &str) -> Result<Fcall> {
         match ver {
             P92000L => Ok(Fcall::Rversion {
@@ -321,6 +353,7 @@ fn dispatch_once<FsFid>(
             }
         }
     }
+
     let mut newfids: Vec<_> = msg
         .body
         .newfids()
@@ -374,6 +407,7 @@ fn dispatch_once<FsFid>(
     for f in fids {
         fsfids.insert(f.fid, f);
     }
+
     for f in newfids {
         fsfids.insert(f.fid, f);
     }
@@ -412,7 +446,7 @@ impl SocketListener for UnixListener {
     }
 }
 
-/// Start the 9P filesystem (fork child processes).
+/// Start a 9P filesystem (forking child processes).
 ///
 /// This function forks a child process to handle its 9P messages
 /// when a client connects to the server.
@@ -456,7 +490,7 @@ pub fn srv<Fs: Filesystem>(filesystem: Fs, addr: &str) -> Result<()> {
     }
 }
 
-/// Start the 9P filesystem (spawning threads).
+/// Start a 9P filesystem (spawning threads).
 ///
 /// This function spawns a new thread to handle its 9P messages
 /// when a client connects to the server.

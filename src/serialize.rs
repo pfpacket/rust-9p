@@ -11,6 +11,7 @@ macro_rules! decode {
     ($decoder:expr) => {
         Decodable::decode(&mut $decoder)?
     };
+
     ($typ:ident, $buf:expr) => {
         $typ::from_bits_truncate(decode!($buf))
     };
@@ -316,7 +317,8 @@ impl Encodable for Msg {
             << &(0u32/* size */)
             << &(typ as u8)
             << &self.tag;
-        let buf = (match self.body {
+
+        let buf = match self.body {
             // 9P2000.L
             Rlerror { ref ecode } => buf << ecode,
             Tstatfs { ref fid } => buf << fid,
@@ -428,7 +430,9 @@ impl Encodable for Msg {
             } => buf << dirfd << name << flags,
             Runlinkat => buf,
 
-            // 9P2000.u
+            /*
+             * 9P2000.u
+             */
             Tauth {
                 ref afid,
                 ref uname,
@@ -445,7 +449,9 @@ impl Encodable for Msg {
             } => buf << fid << afid << uname << aname << n_uname,
             Rattach { ref qid } => buf << qid,
 
-            // 9P2000
+            /*
+             * 9P2000
+             */
             Tversion {
                 ref msize,
                 ref version,
@@ -478,7 +484,7 @@ impl Encodable for Msg {
             Rclunk => buf,
             Tremove { ref fid } => buf << fid,
             Rremove => buf,
-        })?;
+        }?;
 
         let mut vec_buffer = buf.into_inner();
         let buf_size = vec_buffer.len();
@@ -666,7 +672,9 @@ impl Decodable for Msg {
         let msg_type = MsgType::from_u8(decode!(buf));
         let tag = decode!(buf);
         let body = match msg_type {
-            // 9P2000.L
+            /*
+             * 9P2000.L
+             */
             Some(Rlerror) => Fcall::Rlerror {
                 ecode: decode!(buf),
             },
@@ -801,7 +809,9 @@ impl Decodable for Msg {
             },
             Some(Runlinkat) => Fcall::Runlinkat,
 
-            // 9P2000.u
+            /*
+             * 9P2000.u
+             */
             Some(Tauth) => Fcall::Tauth {
                 afid: decode!(buf),
                 uname: decode!(buf),
@@ -818,7 +828,9 @@ impl Decodable for Msg {
             },
             Some(Rattach) => Fcall::Rattach { qid: decode!(buf) },
 
-            // 9P2000
+            /*
+             * 9P2000
+             */
             Some(Tversion) => Fcall::Tversion {
                 msize: decode!(buf),
                 version: decode!(buf),

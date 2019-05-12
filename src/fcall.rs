@@ -12,17 +12,22 @@ use enum_primitive::*;
 
 /// 9P2000 version string
 pub const P92000: &'static str = "9P2000";
+
 /// 9P2000.L version string
 pub const P92000L: &'static str = "9P2000.L";
 
-// 9P magic numbers
+/*
+ * 9P magic numbers
+ */
 /// Special tag which `Tversion`/`Rversion` must use as `tag`
 pub const NOTAG: u16 = !0;
+
 /// Special value which `Tattach` with no auth must use as `afid`
 ///
 /// If the client does not wish to authenticate the connection, or knows that authentication is
 /// not required, the afid field in the attach message should be set to `NOFID`
 pub const NOFID: u32 = !0;
+
 /// Special uid which `Tauth`/`Tattach` use as `n_uname` to indicate no uid is specified
 pub const NONUNAME: u32 = !0;
 
@@ -130,7 +135,7 @@ pub mod p92000 {
                 + self.muid.len()) as u16
         }
     }
-} // pub mod p92000
+}
 
 bitflags! {
     /// File lock type, Flock.typ
@@ -199,12 +204,15 @@ impl From<::std::fs::FileType> for QidType {
 impl<'a> From<&'a ::std::fs::FileType> for QidType {
     fn from(typ: &'a ::std::fs::FileType) -> Self {
         let mut qid_type = QidType::FILE;
+
         if typ.is_dir() {
             qid_type.insert(QidType::DIR)
         }
+
         if typ.is_symlink() {
             qid_type.insert(QidType::SYMLINK)
         }
+
         qid_type
     }
 }

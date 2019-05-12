@@ -72,6 +72,7 @@ impl Filesystem for Unpfs {
 
         for (i, name) in wnames.iter().enumerate() {
             path.push(name);
+
             let qid = match get_qid(&path) {
                 Ok(qid) => qid,
                 Err(e) => {
@@ -82,8 +83,10 @@ impl Filesystem for Unpfs {
                     }
                 }
             };
+
             wqids.push(qid);
         }
+
         newfid.aux = Some(UnpfsFid::new(&path));
 
         Ok(Fcall::Rwalk { wqids: wqids })
@@ -135,11 +138,13 @@ impl Filesystem for Unpfs {
             } else {
                 FileTime::from_last_access_time(&fs::metadata(filepath)?)
             };
+
             let mtime = if valid.contains(SetattrMask::MTIME_SET) {
                 FileTime::from_unix_time(stat.mtime.sec as i64, stat.mtime.nsec as u32)
             } else {
                 FileTime::from_last_modification_time(&fs::metadata(filepath)?)
             };
+
             filetime::set_file_times(filepath, atime, mtime)?
         }
 

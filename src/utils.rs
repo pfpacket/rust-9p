@@ -37,6 +37,7 @@ pub fn parse_proto(arg: &str) -> Option<(&str, String)> {
         otry!(split.nth(0)),
         otry!(split.nth(0)),
     );
+
     Some((proto, addr.to_owned() + ":" + port))
 }
 
