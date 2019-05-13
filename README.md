@@ -30,14 +30,15 @@ cargo build --verbose --release
 and run unpfs with the following command to export `/exportdir`:
 
 ```bash
+# TCP
 cargo run --release 'tcp!0.0.0.0!564' /exportdir
 
 # or
 ./target/release/unpfs 'tcp!0.0.0.0!564' /exportdir
 
-
-# if you want to use Unix domain socket:
-# port number doesn't matter
+# Unix domain socket:
+#  port number is a suffix to the unix domain socket
+#  'unix!/tmp/unpfs-socket!n' creates `/tmp/unpfs-socket:n`
 cargo run --release 'unix!/tmp/unpfs-socket!0' /exportdir
 ```
 You are now ready to import/mount the remote filesystem.
@@ -52,12 +53,14 @@ sudo mount -t 9p -o version=9p2000.L,trans=unix,uname=$USER /tmp/unpfs-socket:0 
 
 | Mount option | Value |
 |---|---|
-| version | version must be "9p2000.L" |
-| trans | trans must be "tcp" or "unix" |
-| port | port number |
-| uname | user name for accessing file server |
+| version | must be "9p2000.L" |
+| trans | an alternative v9fs transport. "tcp" or "unix" |
+| port | port to connect to on the remote server |
+| uname | user name to attempt mount as on the remote server |
+
+See [v9fs documentation](https://www.kernel.org/doc/Documentation/filesystems/9p.txt) for more details.
 
 
 ## License
-rust-9p is distributed under the BSD 3-Clause License.  
+rust-9p is distributed under the BSD 3-Clause License.
 See LICENSE for details.
