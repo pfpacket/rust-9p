@@ -21,22 +21,9 @@ macro_rules! res {
     };
 }
 
-macro_rules! otry {
-    ($opt:expr) => {
-        match $opt {
-            Some(val) => val,
-            None => return None,
-        }
-    };
-}
-
 pub fn parse_proto(arg: &str) -> Option<(&str, String)> {
     let mut split = arg.split("!");
-    let (proto, addr, port) = (
-        otry!(split.nth(0)),
-        otry!(split.nth(0)),
-        otry!(split.nth(0)),
-    );
+    let (proto, addr, port) = (split.nth(0)?, split.nth(0)?, split.nth(0)?);
 
     Some((proto, addr.to_owned() + ":" + port))
 }
