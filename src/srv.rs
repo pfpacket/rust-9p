@@ -284,8 +284,8 @@ where
 {
     fn new(fs: Fs, stream: RwExt) -> Result<ServerInstance<Fs, RwExt>> {
         let server = ServerInstance {
-            fs: fs,
-            stream: stream,
+            fs,
+            stream,
             fids: HashMap::new(),
         };
         Ok(server)
@@ -316,8 +316,8 @@ where
 {
     fn new(fs: Arc<Mutex<Fs>>, stream: RwExt) -> Result<SpawnServerInstance<Fs, RwExt>> {
         let server = SpawnServerInstance {
-            fs: fs,
-            stream: stream,
+            fs,
+            stream,
             fids: HashMap::new(),
         };
         Ok(server)
@@ -429,7 +429,7 @@ impl SocketListener for TcpListener {
         let (stream, remote) = self.accept()?;
         utils::setup_tcp_stream(&stream)?;
 
-        return Ok((Box::new(stream), remote.to_string()));
+        Ok((Box::new(stream), remote.to_string()))
     }
 }
 
@@ -442,7 +442,7 @@ impl SocketListener for UnixListener {
             .unwrap_or(":unnamed:")
             .to_owned();
 
-        return Ok((Box::new(stream), remote));
+        Ok((Box::new(stream), remote))
     }
 }
 

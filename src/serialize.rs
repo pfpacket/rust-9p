@@ -69,7 +69,7 @@ pub struct Encoder<W> {
 impl<W: WriteBytesExt> Encoder<W> {
     pub fn new(writer: W) -> Encoder<W> {
         Encoder {
-            writer: writer,
+            writer,
             bytes: 0,
         }
     }
@@ -118,7 +118,7 @@ pub struct Decoder<R> {
 
 impl<R: ReadBytesExt> Decoder<R> {
     pub fn new(reader: R) -> Decoder<R> {
-        Decoder { reader: reader }
+        Decoder { reader }
     }
     pub fn decode<T: Decodable>(&mut self) -> Result<T> {
         Decodable::decode(&mut self.reader)
@@ -873,8 +873,8 @@ impl Decodable for Msg {
         };
 
         Ok(Msg {
-            tag: tag,
-            body: body,
+            tag,
+            body,
         })
     }
 }

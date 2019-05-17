@@ -22,7 +22,7 @@ macro_rules! res {
 }
 
 pub fn parse_proto(arg: &str) -> Option<(&str, String)> {
-    let mut split = arg.split("!");
+    let mut split = arg.split('!');
     let (proto, addr, port) = (split.nth(0)?, split.nth(0)?, split.nth(0)?);
 
     Some((proto, addr.to_owned() + ":" + port))
@@ -40,8 +40,8 @@ pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, tag: u16, body: Fcall) ->
     };
 
     let msg = Msg {
-        tag: tag,
-        body: body,
+        tag,
+        body,
     };
     serialize::write_msg(stream, &msg)?;
 

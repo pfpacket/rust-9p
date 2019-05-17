@@ -11,10 +11,10 @@ use bitflags::bitflags;
 use enum_primitive::*;
 
 /// 9P2000 version string
-pub const P92000: &'static str = "9P2000";
+pub const P92000: &str = "9P2000";
 
 /// 9P2000.L version string
-pub const P92000L: &'static str = "9P2000.L";
+pub const P92000L: &str = "9P2000.L";
 
 /*
  * 9P magic numbers
