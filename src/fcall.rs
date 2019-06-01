@@ -314,11 +314,11 @@ impl From<nix::sys::statvfs::Statvfs> for Statfs {
         Statfs {
             typ: 0,
             bsize: buf.block_size() as u32,
-            blocks: buf.blocks(),
-            bfree: buf.blocks_free(),
-            bavail: buf.blocks_available(),
-            files: buf.files(),
-            ffree: buf.files_free(),
+            blocks: buf.blocks() as u64,
+            bfree: buf.blocks_free() as u64,
+            bavail: buf.blocks_available() as u64,
+            files: buf.files() as u64,
+            ffree: buf.files_free() as u64,
             fsid: buf.filesystem_id() as u64,
             namelen: buf.name_max() as u32,
         }
