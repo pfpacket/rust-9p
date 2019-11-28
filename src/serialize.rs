@@ -68,10 +68,7 @@ pub struct Encoder<W> {
 
 impl<W: WriteBytesExt> Encoder<W> {
     pub fn new(writer: W) -> Encoder<W> {
-        Encoder {
-            writer,
-            bytes: 0,
-        }
+        Encoder { writer, bytes: 0 }
     }
 
     /// Return total bytes written
@@ -872,10 +869,7 @@ impl Decodable for Msg {
             Some(Tlerror) | None => return res!(io_err!(Other, "Invalid message type")),
         };
 
-        Ok(Msg {
-            tag,
-            body,
-        })
+        Ok(Msg { tag, body })
     }
 }
 

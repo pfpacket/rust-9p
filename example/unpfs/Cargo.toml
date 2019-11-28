@@ -9,8 +9,8 @@ edition = "2018"
 name = "unpfs"
 
 [dependencies]
-nix = "0.13"
-env_logger = "0.6"
+nix = "0.17"
+env_logger = "0.7"
 filetime = "0.2"
 
 [dependencies.rust-9p]

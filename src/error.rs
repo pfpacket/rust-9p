@@ -68,14 +68,7 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::No(ref e) => e.desc(),
-            Error::Io(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&std::error::Error> {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             Error::No(_) => None,
             Error::Io(ref e) => Some(e),

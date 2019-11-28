@@ -39,10 +39,7 @@ pub fn respond<WExt: WriteBytesExt>(stream: &mut WExt, tag: u16, body: Fcall) ->
         return res!(io_err!(Other, "Invalid 9P message in this context"));
     };
 
-    let msg = Msg {
-        tag,
-        body,
-    };
+    let msg = Msg { tag, body };
     serialize::write_msg(stream, &msg)?;
 
     debug!("\t← {:?}", msg);

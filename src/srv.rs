@@ -338,7 +338,7 @@ where
 
 fn dispatch_once<FsFid>(
     msg: Msg,
-    fs: &mut Filesystem<Fid = FsFid>,
+    fs: &mut dyn Filesystem<Fid = FsFid>,
     fsfids: &mut HashMap<u32, Fid<FsFid>>,
 ) -> Result<(Fcall, u16)> {
     use crate::Fcall::*;
