@@ -1,10 +1,12 @@
-extern crate nix;
-extern crate rs9p;
-
-use rs9p::fcall::*;
-use std::fs;
-use std::os::unix::prelude::*;
-use std::path::Path;
+use {
+    std::{
+        path::Path,
+        fs::Metadata,
+        os::unix::prelude::*,
+    },
+    tokio::fs,
+    rs9p::fcall::*,
+};
 
 #[macro_export]
 macro_rules! res {
@@ -35,11 +37,11 @@ pub fn create_buffer(size: usize) -> Vec<u8> {
     buffer
 }
 
-pub fn get_qid<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<Qid> {
-    Ok(qid_from_attr(&fs::symlink_metadata(path.as_ref())?))
+pub async fn get_qid<T: AsRef<Path> + ?Sized>(path: &T) -> rs9p::Result<Qid> {
+    Ok(qid_from_attr(&fs::symlink_metadata(path.as_ref()).await?))
 }
 
-pub fn qid_from_attr(attr: &fs::Metadata) -> Qid {
+pub fn qid_from_attr(attr: &Metadata) -> Qid {
     Qid {
         typ: From::from(attr.file_type()),
         version: 0,
@@ -47,18 +49,18 @@ pub fn qid_from_attr(attr: &fs::Metadata) -> Qid {
     }
 }
 
-pub fn get_dirent_from<P: AsRef<Path> + ?Sized>(p: &P, offset: u64) -> rs9p::Result<DirEntry> {
+pub async fn get_dirent_from<P: AsRef<Path> + ?Sized>(p: &P, offset: u64) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
-        qid: get_qid(p)?,
+        qid: get_qid(p).await?,
         offset: offset,
         typ: 0,
         name: p.as_ref().to_string_lossy().into_owned(),
     })
 }
 
-pub fn get_dirent(entry: &fs::DirEntry, offset: u64) -> rs9p::Result<DirEntry> {
+pub async fn get_dirent(entry: &fs::DirEntry, offset: u64) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
-        qid: qid_from_attr(&entry.metadata()?),
+        qid: qid_from_attr(&entry.metadata().await?),
         offset: offset,
         typ: 0,
         name: entry.file_name().to_string_lossy().into_owned(),

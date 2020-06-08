@@ -27,5 +27,4 @@ pub use crate::error::errno;
 pub use crate::error::string as errstr;
 pub use crate::error::Error;
 pub use crate::fcall::*;
-pub use crate::srv::{srv, srv_spawn};
 pub use crate::utils::Result;
