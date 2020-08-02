@@ -1,6 +1,6 @@
 rust-9p
 =====
-Filesystems library using 9P2000.L protocol, an extended variant of 9P from Plan 9.
+Tokio-based asynchronous filesystems library using 9P2000.L protocol, an extended variant of 9P from Plan 9.
 
 [![Build Status](https://travis-ci.org/pfpacket/rust-9p.svg?branch=master)](https://travis-ci.org/pfpacket/rust-9p)
 
@@ -12,7 +12,7 @@ Use Rust nightly.
 
 
 ## Usage
-Add this to your crate:
+Add the following to your crate:
 
 ```rust
 extern crate rs9p;
@@ -20,7 +20,7 @@ extern crate rs9p;
 
 
 ## unpfs
-unpfs is an example file server which just exports your filesystem.
+`unpfs` is the reference implementation of a file server which exports your filesystem.
 You can build unpfs with the following commands below:
 
 ```bash
@@ -32,7 +32,6 @@ and run unpfs with the following command to export `/exportdir`:
 ```bash
 # TCP
 cargo run --release 'tcp!0.0.0.0!564' /exportdir
-
 # or
 ./target/release/unpfs 'tcp!0.0.0.0!564' /exportdir
 
