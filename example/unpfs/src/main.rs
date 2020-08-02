@@ -295,13 +295,13 @@ impl Filesystem for Unpfs {
     async fn rmkdir(
         &self,
         dfid: &Fid<Self::Fid>,
-        _name: &str,
+        name: &str,
         _mode: u32,
         _gid: u32,
     ) -> Result<Fcall> {
         let path = {
             let realpath = dfid.aux.realpath.read().await;
-            realpath.clone()
+            realpath.join(name)
         };
 
         fs::create_dir(&path).await?;
