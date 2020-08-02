@@ -3,7 +3,7 @@
 use crate::fcall::*;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
-use std::io::{Cursor, Read, Result};
+use std::io::{Read, Result};
 use std::mem;
 use std::ops::{Shl, Shr, Try};
 
@@ -310,10 +310,7 @@ impl Encodable for Msg {
         use crate::Fcall::*;
 
         let typ = MsgType::from(&self.body);
-        let buf = Encoder::new(Vec::with_capacity(8196))
-            << &(0u32/* size */)
-            << &(typ as u8)
-            << &self.tag;
+        let buf = Encoder::new(w) << &(typ as u8) << &self.tag;
 
         let buf = match self.body {
             // 9P2000.L
@@ -483,11 +480,7 @@ impl Encodable for Msg {
             Rremove => buf,
         }?;
 
-        let mut vec_buffer = buf.into_inner();
-        let buf_size = vec_buffer.len();
-        unsafe { *(vec_buffer.as_mut_ptr() as *mut u32) = buf_size as u32 };
-
-        w.write_all(&vec_buffer).and(Ok(buf_size))
+        Ok(buf.bytes_written())
     }
 }
 
@@ -663,8 +656,7 @@ impl Decodable for Msg {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         use crate::MsgType::*;
 
-        let size = r.read_u32::<LittleEndian>()? - 4;
-        let mut buf = Cursor::new(read_exact(r, size as usize)?);
+        let mut buf = r;
 
         let msg_type = MsgType::from_u8(decode!(buf));
         let tag = decode!(buf);
@@ -895,6 +887,8 @@ fn encoder_test1() {
 
 #[test]
 fn decoder_test1() {
+    use std::io::Cursor;
+
     let expected: Vec<u8> = (0..10).collect();
     let mut decoder = Cursor::new(expected.clone());
     let mut actual: Vec<u8> = Vec::new();
@@ -909,6 +903,8 @@ fn decoder_test1() {
 
 #[test]
 fn msg_encode_decode1() {
+    use std::io::Cursor;
+
     let expected = Msg {
         tag: 0xdead,
         body: Fcall::Rversion {

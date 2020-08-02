@@ -10,7 +10,7 @@ use crate::error::errno::*;
 use std::io::ErrorKind::*;
 use std::{fmt, io};
 
-fn errno_from_ioerror(e: &io::Error) -> nix::errno::Errno {
+fn errno_from_io_error(e: &io::Error) -> nix::errno::Errno {
     e.raw_os_error()
         .map(nix::errno::from_i32)
         .unwrap_or_else(|| match e.kind() {
@@ -53,7 +53,7 @@ impl Error {
     pub fn errno(&self) -> nix::errno::Errno {
         match *self {
             Error::No(ref e) => *e,
-            Error::Io(ref e) => errno_from_ioerror(e),
+            Error::Io(ref e) => errno_from_io_error(e),
         }
     }
 }
@@ -84,7 +84,7 @@ impl From<io::Error> for Error {
 
 impl<'a> From<&'a io::Error> for Error {
     fn from(e: &'a io::Error) -> Self {
-        Error::No(errno_from_ioerror(e))
+        Error::No(errno_from_io_error(e))
     }
 }
 

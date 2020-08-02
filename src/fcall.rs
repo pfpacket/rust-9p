@@ -929,14 +929,14 @@ impl Fcall {
         }
     }
 
-    /// Get the newfids which self contains
-    pub fn newfids(&self) -> Vec<u32> {
+    /// Get the newfid which self contains
+    pub fn newfid(&self) -> Option<u32> {
         match *self {
-            Fcall::Txattrwalk { newfid, .. } => vec![newfid],
-            Fcall::Tauth { afid, .. } => vec![afid],
-            Fcall::Tattach { fid, .. } => vec![fid],
-            Fcall::Twalk { newfid, .. } => vec![newfid],
-            _ => Vec::new(),
+            Fcall::Txattrwalk { newfid, .. } => Some(newfid),
+            Fcall::Tauth { afid, .. } => Some(afid),
+            Fcall::Tattach { fid, .. } => Some(fid),
+            Fcall::Twalk { newfid, .. } => Some(newfid),
+            _ => None,
         }
     }
 
