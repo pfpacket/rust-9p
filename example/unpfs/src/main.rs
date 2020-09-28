@@ -1,19 +1,22 @@
 use {
-    std::{
-        io::SeekFrom,
-        path::PathBuf,
-        os::unix::{fs::PermissionsExt, io::FromRawFd},
-    },
+    async_trait::async_trait,
     filetime::FileTime,
     nix::libc::{O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY},
-    async_trait::async_trait,
+    rs9p::{
+        srv::{srv_async, Fid, Filesystem},
+        *,
+    },
+    std::{
+        io::SeekFrom,
+        os::unix::{fs::PermissionsExt, io::FromRawFd},
+        path::PathBuf,
+    },
     tokio::{
-        prelude::*,
         fs,
+        prelude::*,
         stream::StreamExt,
         sync::{Mutex, RwLock},
     },
-    rs9p::{*, srv::{srv_async, Fid, Filesystem}},
 };
 
 mod utils;
@@ -147,7 +150,13 @@ impl Filesystem for Unpfs {
         }
 
         if valid.contains(SetattrMask::SIZE) {
-            let _ = fs::File::open(&filepath).await?.set_len(stat.size).await?;
+            let _ = fs::OpenOptions::new()
+                .write(true)
+                .create(false)
+                .open(&filepath)
+                .await?
+                .set_len(stat.size)
+                .await?;
         }
 
         if valid.intersects(SetattrMask::ATIME_SET | SetattrMask::MTIME_SET) {
@@ -164,7 +173,10 @@ impl Filesystem for Unpfs {
                 FileTime::from_last_modification_time(&attr)
             };
 
-            let _ = tokio::task::spawn_blocking(move || filetime::set_file_times(filepath, atime, mtime)).await;
+            let _ = tokio::task::spawn_blocking(move || {
+                filetime::set_file_times(filepath, atime, mtime)
+            })
+            .await;
         }
 
         Ok(Fcall::Rsetattr)
@@ -224,7 +236,9 @@ impl Filesystem for Unpfs {
 
             {
                 let mut file = fid.aux.file.lock().await;
-                *file = Some(fs::File::from_std(unsafe { std::fs::File::from_raw_fd(fd) }));
+                *file = Some(fs::File::from_std(unsafe {
+                    std::fs::File::from_raw_fd(fd)
+                }));
             }
         }
 
@@ -257,13 +271,12 @@ impl Filesystem for Unpfs {
         }
         {
             let mut file = fid.aux.file.lock().await;
-            *file = Some(fs::File::from_std(unsafe { std::fs::File::from_raw_fd(fd) }));
+            *file = Some(fs::File::from_std(unsafe {
+                std::fs::File::from_raw_fd(fd)
+            }));
         }
 
-        Ok(Fcall::Rlcreate {
-            qid,
-            iounit: 0,
-        })
+        Ok(Fcall::Rlcreate { qid, iounit: 0 })
     }
 
     async fn rread(&self, fid: &Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
@@ -350,10 +363,7 @@ impl Filesystem for Unpfs {
     async fn rfsync(&self, fid: &Fid<Self::Fid>) -> Result<Fcall> {
         {
             let mut file = fid.aux.file.lock().await;
-            file
-                .as_mut()
-                .ok_or(INVALID_FID!())?
-                .sync_all().await?;
+            file.as_mut().ok_or(INVALID_FID!())?.sync_all().await?;
         }
 
         Ok(Fcall::Rfsync)
@@ -370,7 +380,9 @@ impl Filesystem for Unpfs {
         };
 
         //let fs = nix::sys::statvfs::statvfs(&path)?;
-        let fs = tokio::task::spawn_blocking(move || nix::sys::statvfs::statvfs(&path)).await.unwrap()?;
+        let fs = tokio::task::spawn_blocking(move || nix::sys::statvfs::statvfs(&path))
+            .await
+            .unwrap()?;
 
         Ok(Fcall::Rstatfs {
             statfs: From::from(fs),
@@ -396,7 +408,9 @@ async fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
             realroot: mountpoint,
         },
         addr,
-    ).await.and(Ok(0))
+    )
+    .await
+    .and(Ok(0))
 }
 
 #[tokio::main]
