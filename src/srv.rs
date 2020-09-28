@@ -348,19 +348,19 @@ where
         let bytes = bytes?;
 
         let msg = serialize::read_msg(&mut bytes.reader())?;
-        debug!("\t← {:?}", msg);
+        info!("\t← {:?}", msg);
 
         let fids = fsfids.clone();
         let fs = filesystem.clone();
         let framedwrite = framedwrite.clone();
 
         tokio::spawn(async move {
-            let response_fcall =
-                dispatch_once(&msg, fs, fids)
-                    .await
-                    .unwrap_or_else(|e| Fcall::Rlerror {
-                        ecode: e.errno() as u32,
-                    });
+            let response_fcall = dispatch_once(&msg, fs, fids).await.unwrap_or_else(|e| {
+                error!("{:?}: Error: \"{}\": {:?}", MsgType::from(&msg.body), e, e);
+                Fcall::Rlerror {
+                    ecode: e.errno() as u32,
+                }
+            });
 
             if MsgType::from(&response_fcall).is_r() {
                 let response = Msg {
@@ -378,7 +378,7 @@ where
                         .await
                         .unwrap();
                 }
-                debug!("\t→ {:?}", response);
+                info!("\t→ {:?}", response);
             }
         });
     }
@@ -402,7 +402,7 @@ where
             let (readhalf, writehalf) = stream.into_split();
             let res = dispatch(fs, readhalf, writehalf).await;
             if let Err(e) = res {
-                error!("Error: {:?}", e);
+                error!("Error: {}: {:?}", e, e);
             }
         });
     }
