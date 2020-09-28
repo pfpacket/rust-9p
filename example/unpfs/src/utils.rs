@@ -1,11 +1,7 @@
 use {
-    std::{
-        path::Path,
-        fs::Metadata,
-        os::unix::prelude::*,
-    },
-    tokio::fs,
     rs9p::fcall::*,
+    std::{fs::Metadata, os::unix::prelude::*, path::Path},
+    tokio::fs,
 };
 
 #[macro_export]
@@ -49,7 +45,10 @@ pub fn qid_from_attr(attr: &Metadata) -> Qid {
     }
 }
 
-pub async fn get_dirent_from<P: AsRef<Path> + ?Sized>(p: &P, offset: u64) -> rs9p::Result<DirEntry> {
+pub async fn get_dirent_from<P: AsRef<Path> + ?Sized>(
+    p: &P,
+    offset: u64,
+) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
         qid: get_qid(p).await?,
         offset: offset,
