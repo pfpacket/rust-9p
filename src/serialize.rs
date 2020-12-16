@@ -5,7 +5,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
 use std::io::{Read, Result};
 use std::mem;
-use std::ops::{Shl, Shr, Try};
+use std::ops::{Shl, Shr};
 
 macro_rules! decode {
     ($decoder:expr) => {
@@ -37,23 +37,6 @@ fn read_exact<R: Read + ?Sized>(r: &mut R, size: usize) -> Result<Vec<u8>> {
 /// # Overloaded operators
 /// <<, >>, ?
 pub struct SResult<T>(::std::io::Result<T>);
-
-impl<U> Try for SResult<U> {
-    type Ok = U;
-    type Error = ::std::io::Error;
-
-    fn into_result(self) -> ::std::result::Result<Self::Ok, Self::Error> {
-        self.0
-    }
-
-    fn from_error(v: Self::Error) -> Self {
-        SResult(Err(v))
-    }
-
-    fn from_ok(v: Self::Ok) -> Self {
-        SResult(Ok(v))
-    }
-}
 
 /// A wrapper class of WriteBytesExt to provide operator overloads
 /// for serializing
@@ -92,17 +75,23 @@ impl<W: WriteBytesExt> Encoder<W> {
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for Encoder<W> {
     type Output = SResult<Encoder<W>>;
     fn shl(mut self, rhs: &'a T) -> Self::Output {
-        self.encode(rhs)?;
-        SResult(Ok(self))
+        match self.encode(rhs) {
+            Ok(_) => SResult(Ok(self)),
+            Err(e) => SResult(Err(e)),
+        }
     }
 }
 
 impl<'a, T: Encodable, W: WriteBytesExt> Shl<&'a T> for SResult<Encoder<W>> {
     type Output = Self;
     fn shl(self, rhs: &'a T) -> Self::Output {
-        let mut encoder = self.0?;
-        encoder.encode(rhs)?;
-        SResult(Ok(encoder))
+        match self.0 {
+            Ok(mut encoder) => match encoder.encode(rhs) {
+                Ok(_) => SResult(Ok(encoder)),
+                Err(e) => SResult(Err(e)),
+            },
+            Err(e) => SResult(Err(e)),
+        }
     }
 }
 
@@ -129,17 +118,29 @@ impl<R: ReadBytesExt> Decoder<R> {
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for Decoder<R> {
     type Output = SResult<Decoder<R>>;
     fn shr(mut self, rhs: &'a mut T) -> Self::Output {
-        *rhs = self.decode()?;
-        SResult(Ok(self))
+        match self.decode() {
+            Ok(r) => {
+                *rhs = r;
+                SResult(Ok(self))
+            }
+            Err(e) => SResult(Err(e)),
+        }
     }
 }
 
 impl<'a, T: Decodable, R: ReadBytesExt> Shr<&'a mut T> for SResult<Decoder<R>> {
     type Output = Self;
     fn shr(self, rhs: &'a mut T) -> Self::Output {
-        let mut decoder = self.0?;
-        *rhs = decoder.decode()?;
-        SResult(Ok(decoder))
+        match self.0 {
+            Ok(mut decoder) => match decoder.decode() {
+                Ok(r) => {
+                    *rhs = r;
+                    SResult(Ok(decoder))
+                }
+                Err(e) => SResult(Err(e)),
+            },
+            Err(e) => SResult(Err(e)),
+        }
     }
 }
 
@@ -186,13 +187,16 @@ impl Encodable for String {
 
 impl Encodable for Qid {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w) << &self.typ.bits() << &self.version << &self.path)?.bytes_written())
+        match Encoder::new(w) << &self.typ.bits() << &self.version << &self.path {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for Statfs {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w)
+        match Encoder::new(w)
             << &self.typ
             << &self.bsize
             << &self.blocks
@@ -201,20 +205,26 @@ impl Encodable for Statfs {
             << &self.files
             << &self.ffree
             << &self.fsid
-            << &self.namelen)?
-            .bytes_written())
+            << &self.namelen
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for Time {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w) << &self.sec << &self.nsec)?.bytes_written())
+        match Encoder::new(w) << &self.sec << &self.nsec {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for Stat {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w)
+        match Encoder::new(w)
             << &self.mode
             << &self.uid
             << &self.gid
@@ -225,40 +235,49 @@ impl Encodable for Stat {
             << &self.blocks
             << &self.atime
             << &self.mtime
-            << &self.ctime)?
-            .bytes_written())
+            << &self.ctime
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for SetAttr {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w)
+        match Encoder::new(w)
             << &self.mode
             << &self.uid
             << &self.gid
             << &self.size
             << &self.atime
-            << &self.mtime)?
-            .bytes_written())
+            << &self.mtime
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for DirEntry {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok(
-            (Encoder::new(w) << &self.qid << &self.offset << &self.typ << &self.name)?
-                .bytes_written(),
-        )
+        match Encoder::new(w) << &self.qid << &self.offset << &self.typ << &self.name {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for DirEntryData {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((self
+        match self
             .data()
             .iter()
-            .fold(Encoder::new(w) << &self.size(), |acc, e| acc << e))?
-        .bytes_written())
+            .fold(Encoder::new(w) << &self.size(), |acc, e| acc << e)
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
@@ -273,35 +292,44 @@ impl Encodable for Data {
 
 impl Encodable for Flock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w)
+        match Encoder::new(w)
             << &self.typ.bits()
             << &self.flags.bits()
             << &self.start
             << &self.length
             << &self.proc_id
-            << &self.client_id)?
-            .bytes_written())
+            << &self.client_id
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl Encodable for Getlock {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((Encoder::new(w)
+        match Encoder::new(w)
             << &self.typ.bits()
             << &self.start
             << &self.length
             << &self.proc_id
-            << &self.client_id)?
-            .bytes_written())
+            << &self.client_id
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
 impl<T: Encodable> Encodable for Vec<T> {
     fn encode<W: WriteBytesExt>(&self, w: &mut W) -> Result<usize> {
-        Ok((self
+        match self
             .iter()
-            .fold(Encoder::new(w) << &(self.len() as u16), |acc, s| acc << s))?
-        .bytes_written())
+            .fold(Encoder::new(w) << &(self.len() as u16), |acc, s| acc << s)
+        {
+            SResult(Ok(enc)) => Ok(enc.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
@@ -478,9 +506,12 @@ impl Encodable for Msg {
             Rclunk => buf,
             Tremove { ref fid } => buf << fid,
             Rremove => buf,
-        }?;
+        };
 
-        Ok(buf.bytes_written())
+        match buf {
+            SResult(Ok(b)) => Ok(b.bytes_written()),
+            SResult(Err(e)) => Err(e),
+        }
     }
 }
 
