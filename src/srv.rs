@@ -274,7 +274,7 @@ where
         let fids = fsfids.read().await;
         let get_fid = |fid: &u32| fids.get(fid).ok_or(error::Error::No(EBADF));
 
-        match msg.body {
+        let fut = match msg.body {
             Tstatfs { fid }                                                     => fs.rstatfs(get_fid(&fid)?),
             Tlopen { fid, ref flags }                                           => fs.rlopen(get_fid(&fid)?, *flags),
             Tlcreate { fid, ref name, ref flags, ref mode, ref gid }            => fs.rlcreate(get_fid(&fid)?, name, *flags, *mode, *gid),
@@ -304,7 +304,9 @@ where
             Tclunk { fid }                                                      => fs.rclunk(get_fid(&fid)?),
             Tremove { fid }                                                     => fs.rremove(get_fid(&fid)?),
             _                                                                   => return Err(error::Error::No(EOPNOTSUPP)),
-        }.await?
+        };
+
+        fut.await?
     };
 
     /* Drop the fid which the Tclunk contains */
