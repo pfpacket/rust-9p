@@ -417,7 +417,7 @@ pub struct SetAttr {
 ///
 /// # Protocol
 /// 9P2000.L
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirEntry {
     /// Qid for this directory
     pub qid: Qid,
