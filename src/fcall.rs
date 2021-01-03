@@ -173,6 +173,7 @@ bitflags! {
     ///
     /// # Protocol
     /// 9P2000/9P2000.L
+    #[derive(Default)]
     pub struct QidType: u8 {
         #[doc = "Type bit for directories"]
         const DIR       = 0x80;
@@ -273,7 +274,7 @@ bitflags! {
 ///
 /// # Protocol
 /// 9P2000/9P2000.L
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Qid {
     /// Specify whether the file is a directory, append-only file, etc.
     pub typ: QidType,
@@ -416,7 +417,7 @@ pub struct SetAttr {
 ///
 /// # Protocol
 /// 9P2000.L
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DirEntry {
     /// Qid for this directory
     pub qid: Qid,
