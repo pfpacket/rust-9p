@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["dm","Bits in Stat.mode"],["om","The type of I/O"]],"struct":[["Stat","Plan 9 Namespace metadata (somewhat like a unix fstat)"]]});

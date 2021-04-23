@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error","9P error type which is convertible to an errno."]],"mod":[["errno","The system errno definitions."],["string","9P error strings imported from Linux."]]});

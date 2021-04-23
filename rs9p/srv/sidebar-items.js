@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["srv_async",""]],"struct":[["Fid","Represents a fid of clients holding associated `Filesystem::Fid`."]],"trait":[["Filesystem","Filesystem server trait."]]});
