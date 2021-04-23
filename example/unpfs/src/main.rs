@@ -13,10 +13,10 @@ use {
     },
     tokio::{
         fs,
-        prelude::*,
-        stream::StreamExt,
+        io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt},
         sync::{Mutex, RwLock},
     },
+    tokio_stream::{StreamExt, wrappers::ReadDirStream},
 };
 
 mod utils;
@@ -206,7 +206,7 @@ impl Filesystem for Unpfs {
 
         let mut entries = {
             let realpath = fid.aux.realpath.read().await;
-            fs::read_dir(&*realpath).await?.skip(offset)
+            ReadDirStream::new(fs::read_dir(&*realpath).await?).skip(offset)
         };
 
         let mut i = offset;

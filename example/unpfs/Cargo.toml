@@ -9,12 +9,13 @@ edition = "2018"
 name = "unpfs"
 
 [dependencies]
-nix = "0.18"
-env_logger = "0.7"
-filetime = "0.2"
-tokio = { version = "0.2.21", features = ["full"] }
-async-trait = "0.1.33"
-futures = "0.3.5"
+nix = "^0"
+env_logger = "^0"
+filetime = "^0"
+tokio = { version = "^1.0", features = ["full"] }
+tokio-stream = { version = "^0.1", features = ["fs"] }
+async-trait = "^0.1"
+futures = "^0.3"
 
 [dependencies.rust-9p]
 path = "../../"

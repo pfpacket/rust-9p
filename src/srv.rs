@@ -12,15 +12,15 @@ use {
         utils::{self, Result},
     },
     async_trait::async_trait,
-    bytes::buf::ext::{BufExt, BufMutExt},
+    bytes::buf::{Buf, BufMut},
     futures::sink::SinkExt,
     std::{collections::HashMap, sync::Arc},
     tokio::{
         net::{TcpListener, UnixListener},
-        prelude::*,
-        stream::StreamExt,
+        io::{AsyncRead, AsyncWrite},
         sync::{Mutex, RwLock},
     },
+    tokio_stream::StreamExt,
     tokio_util::codec::length_delimited::LengthDelimitedCodec,
 };
 
@@ -392,12 +392,11 @@ async fn srv_async_tcp<Fs>(filesystem: Fs, addr: &str) -> Result<()>
 where
     Fs: 'static + Filesystem + Send + Sync + Clone,
 {
-    let mut listener = TcpListener::bind(addr).await?;
-    let mut incoming = listener.incoming();
+    let listener = TcpListener::bind(addr).await?;
 
-    while let Some(stream) = incoming.next().await {
-        let stream = stream?;
-        info!("accepted: {:?}", stream.peer_addr());
+    loop {
+        let (stream, peer) = listener.accept().await?;
+        info!("accepted: {:?}", peer);
 
         let fs = filesystem.clone();
         tokio::spawn(async move {
@@ -408,20 +407,17 @@ where
             }
         });
     }
-
-    Ok(())
 }
 
 async fn srv_async_unix<Fs>(filesystem: Fs, addr: &str) -> Result<()>
 where
     Fs: 'static + Filesystem + Send + Sync + Clone,
 {
-    let mut listener = UnixListener::bind(addr)?;
-    let mut incoming = listener.incoming();
+    let listener = UnixListener::bind(addr)?;
 
-    while let Some(stream) = incoming.next().await {
-        let stream = stream?;
-        info!("accepted: {:?}", stream.peer_addr());
+    loop {
+        let (stream, peer) = listener.accept().await?;
+        info!("accepted: {:?}", peer);
 
         let fs = filesystem.clone();
         tokio::spawn(async move {
@@ -432,8 +428,6 @@ where
             }
         });
     }
-
-    Ok(())
 }
 
 pub async fn srv_async<Fs>(filesystem: Fs, addr: &str) -> Result<()>

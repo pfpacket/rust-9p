@@ -19,17 +19,18 @@ name = "rs9p"
 crate-type = ["rlib"]
 
 [dependencies]
-log = "0.4"
-num-traits = "0.2"
-nix = "0.18"
-byteorder = "1"
-bitflags = "1.0"
+log = "^0.4"
+num-traits = "^0.2"
+nix = "^0"
+byteorder = "^1.0"
+bitflags = "^1.0"
 enum_primitive = "*"
-async-trait = "0.1.33"
-tokio = { version = "0.2.21", features = ["full"] }
-tokio-util = { version = "0.3.1", features = ["codec"] }
-bytes = "0.5.4"
-futures = "0.3.5"
+async-trait = "^0.1"
+tokio = { version = "^1.0", features = ["full"] }
+tokio-util = { version = "^0.6", features = ["codec"] }
+tokio-stream = "^0.1"
+bytes = "^1"
+futures = "^0.3"
 
 [profile.release]
 opt-level = 3
