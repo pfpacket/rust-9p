@@ -244,13 +244,13 @@ pub trait Filesystem: Send {
     }
 
     async fn rversion(&self, msize: u32, ver: &str) -> Result<Fcall> {
-        match ver {
-            P92000L => Ok(Fcall::Rversion {
-                msize,
-                version: ver.to_owned(),
-            }),
-            _ => Err(error::Error::No(EPROTONOSUPPORT)),
-        }
+        Ok(Fcall::Rversion {
+            msize,
+            version: match ver {
+                P92000L => ver.to_owned(),
+                _ => VERSION_UNKNOWN.to_owned(),
+            }
+        })
     }
 }
 

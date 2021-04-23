@@ -16,6 +16,10 @@ pub const P92000: &str = "9P2000";
 /// 9P2000.L version string
 pub const P92000L: &str = "9P2000.L";
 
+/// The version string that comes with Rversion when the server does not understand
+/// the client's version string
+pub const VERSION_UNKNOWN: &str = "unknown";
+
 /*
  * 9P magic numbers
  */
