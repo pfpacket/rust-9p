@@ -288,6 +288,14 @@ pub struct Qid {
     pub path: u64,
 }
 
+impl Qid {
+    pub fn size(&self) -> u32 {
+        (size_of::<QidType>()
+         + size_of::<u32>()
+         + size_of::<u64>()) as u32
+    }
+}
+
 /// Filesystem information corresponding to `struct statfs` of Linux.
 ///
 /// # Protocol
@@ -437,7 +445,7 @@ pub struct DirEntry {
 
 impl DirEntry {
     pub fn size(&self) -> u32 {
-        (size_of_val(&self.qid)
+        (self.qid.size() as usize
             + size_of_val(&self.offset)
             + size_of_val(&self.typ)
             + size_of::<u16>()
