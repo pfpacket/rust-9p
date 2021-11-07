@@ -88,15 +88,9 @@ impl<'a> From<&'a io::Error> for Error {
     }
 }
 
-impl From<nix::errno::Errno> for Error {
-    fn from(e: nix::errno::Errno) -> Self {
-        Error::No(e)
-    }
-}
-
 impl From<nix::Error> for Error {
     fn from(e: nix::Error) -> Self {
-        Error::No(e.as_errno().unwrap_or(UnknownErrno))
+        Error::No(e)
     }
 }
 
