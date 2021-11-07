@@ -548,7 +548,7 @@ impl Decodable for String {
     fn decode<R: ReadBytesExt>(r: &mut R) -> Result<Self> {
         let len: u16 = Decodable::decode(r)?;
         String::from_utf8(read_exact(r, len as usize)?)
-            .or(res!(io_err!(Other, "Invalid UTF-8 sequence")))
+            .map_err(|_| io_err!(Other, "Invalid UTF-8 sequence"))
     }
 }
 

@@ -51,7 +51,7 @@ pub async fn get_dirent_from<P: AsRef<Path> + ?Sized>(
 ) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
         qid: get_qid(p).await?,
-        offset: offset,
+        offset,
         typ: 0,
         name: p.as_ref().to_string_lossy().into_owned(),
     })
@@ -60,7 +60,7 @@ pub async fn get_dirent_from<P: AsRef<Path> + ?Sized>(
 pub async fn get_dirent(entry: &fs::DirEntry, offset: u64) -> rs9p::Result<DirEntry> {
     Ok(DirEntry {
         qid: qid_from_attr(&entry.metadata().await?),
-        offset: offset,
+        offset,
         typ: 0,
         name: entry.file_name().to_string_lossy().into_owned(),
     })

@@ -16,8 +16,8 @@ use {
     futures::sink::SinkExt,
     std::{collections::HashMap, sync::Arc},
     tokio::{
-        net::{TcpListener, UnixListener},
         io::{AsyncRead, AsyncWrite},
+        net::{TcpListener, UnixListener},
         sync::{Mutex, RwLock},
     },
     tokio_stream::StreamExt,
@@ -249,7 +249,7 @@ pub trait Filesystem: Send {
             version: match ver {
                 P92000L => ver.to_owned(),
                 _ => VERSION_UNKNOWN.to_owned(),
-            }
+            },
         })
     }
 }
@@ -434,8 +434,8 @@ pub async fn srv_async<Fs>(filesystem: Fs, addr: &str) -> Result<()>
 where
     Fs: 'static + Filesystem + Send + Sync + Clone,
 {
-    let (proto, listen_addr) =
-        utils::parse_proto(addr).ok_or(io_err!(InvalidInput, "Invalid protocol or address"))?;
+    let (proto, listen_addr) = utils::parse_proto(addr)
+        .ok_or_else(|| io_err!(InvalidInput, "Invalid protocol or address"))?;
 
     match proto {
         "tcp" => srv_async_tcp(filesystem, &listen_addr).await,

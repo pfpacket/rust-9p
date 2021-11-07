@@ -13,10 +13,10 @@ use {
     },
     tokio::{
         fs,
-        io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt},
+        io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
         sync::{Mutex, RwLock},
     },
-    tokio_stream::{StreamExt, wrappers::ReadDirStream},
+    tokio_stream::{wrappers::ReadDirStream, StreamExt},
 };
 
 mod utils;
@@ -104,7 +104,7 @@ impl Filesystem for Unpfs {
             *new_realpath = path;
         }
 
-        Ok(Fcall::Rwalk { wqids: wqids })
+        Ok(Fcall::Rwalk { wqids })
     }
 
     async fn rgetattr(&self, fid: &Fid<Self::Fid>, req_mask: GetattrMask) -> Result<Fcall> {
@@ -242,10 +242,7 @@ impl Filesystem for Unpfs {
             }
         }
 
-        Ok(Fcall::Rlopen {
-            qid: qid,
-            iounit: 0,
-        })
+        Ok(Fcall::Rlopen { qid, iounit: 0 })
     }
 
     async fn rlcreate(
@@ -282,7 +279,7 @@ impl Filesystem for Unpfs {
     async fn rread(&self, fid: &Fid<Self::Fid>, offset: u64, count: u32) -> Result<Fcall> {
         let buf = {
             let mut file = fid.aux.file.lock().await;
-            let file = file.as_mut().ok_or(INVALID_FID!())?;
+            let file = file.as_mut().ok_or_else(|| INVALID_FID!())?;
             file.seek(SeekFrom::Start(offset)).await?;
 
             let mut buf = create_buffer(count as usize);
@@ -297,7 +294,7 @@ impl Filesystem for Unpfs {
     async fn rwrite(&self, fid: &Fid<Self::Fid>, offset: u64, data: &Data) -> Result<Fcall> {
         let count = {
             let mut file = fid.aux.file.lock().await;
-            let file = file.as_mut().ok_or(INVALID_FID!())?;
+            let file = file.as_mut().ok_or_else(|| INVALID_FID!())?;
             file.seek(SeekFrom::Start(offset)).await?;
             file.write(&data.0).await? as u32
         };
@@ -363,7 +360,10 @@ impl Filesystem for Unpfs {
     async fn rfsync(&self, fid: &Fid<Self::Fid>) -> Result<Fcall> {
         {
             let mut file = fid.aux.file.lock().await;
-            file.as_mut().ok_or(INVALID_FID!())?.sync_all().await?;
+            file.as_mut()
+                .ok_or_else(|| INVALID_FID!())?
+                .sync_all()
+                .await?;
         }
 
         Ok(Fcall::Rfsync)

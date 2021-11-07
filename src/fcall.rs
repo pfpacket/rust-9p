@@ -290,9 +290,7 @@ pub struct Qid {
 
 impl Qid {
     pub fn size(&self) -> u32 {
-        (size_of::<QidType>()
-         + size_of::<u32>()
-         + size_of::<u64>()) as u32
+        (size_of::<QidType>() + size_of::<u32>() + size_of::<u64>()) as u32
     }
 }
 
@@ -463,17 +461,27 @@ impl DirEntryData {
     pub fn new() -> DirEntryData {
         Self::with(Vec::new())
     }
+
     pub fn with(v: Vec<DirEntry>) -> DirEntryData {
         DirEntryData { data: v }
     }
+
     pub fn data(&self) -> &[DirEntry] {
         &self.data
     }
+
     pub fn size(&self) -> u32 {
         self.data.iter().fold(0, |a, e| a + e.size()) as u32
     }
+
     pub fn push(&mut self, entry: DirEntry) {
         self.data.push(entry);
+    }
+}
+
+impl Default for DirEntryData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -599,13 +607,39 @@ impl MsgType {
     /// If the message type is R-message
     pub fn is_r(&self) -> bool {
         use crate::MsgType::*;
-        match *self {
-            Rlerror | Rstatfs | Rlopen | Rlcreate | Rsymlink | Rmknod | Rrename | Rreadlink
-            | Rgetattr | Rsetattr | Rxattrwalk | Rxattrcreate | Rreaddir | Rfsync | Rlock
-            | Rgetlock | Rlink | Rmkdir | Rrenameat | Runlinkat | Rversion | Rauth | Rattach
-            | Rflush | Rwalk | Rread | Rwrite | Rclunk | Rremove => true,
-            _ => false,
-        }
+
+        matches!(
+            *self,
+            Rlerror
+                | Rstatfs
+                | Rlopen
+                | Rlcreate
+                | Rsymlink
+                | Rmknod
+                | Rrename
+                | Rreadlink
+                | Rgetattr
+                | Rsetattr
+                | Rxattrwalk
+                | Rxattrcreate
+                | Rreaddir
+                | Rfsync
+                | Rlock
+                | Rgetlock
+                | Rlink
+                | Rmkdir
+                | Rrenameat
+                | Runlinkat
+                | Rversion
+                | Rauth
+                | Rattach
+                | Rflush
+                | Rwalk
+                | Rread
+                | Rwrite
+                | Rclunk
+                | Rremove
+        )
     }
 }
 
