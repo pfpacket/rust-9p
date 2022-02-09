@@ -409,7 +409,7 @@ where
     }
 }
 
-async fn srv_async_unix<Fs>(filesystem: Fs, addr: &str) -> Result<()>
+pub async fn srv_async_unix<Fs>(filesystem: Fs, addr: &str) -> Result<()>
 where
     Fs: 'static + Filesystem + Send + Sync + Clone,
 {
