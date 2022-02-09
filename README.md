@@ -3,6 +3,7 @@ rust-9p
 Tokio-based asynchronous filesystems library using 9P2000.L protocol, an extended variant of 9P from Plan 9.
 
 [![Build Status](https://travis-ci.org/pfpacket/rust-9p.svg?branch=master)](https://travis-ci.org/pfpacket/rust-9p)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fpfpacket%2Frust-9p.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fpfpacket%2Frust-9p?ref=badge_shield)
 
 [Documentation](https://pfpacket.github.io/rust-9p/rs9p/index.html)
 
@@ -63,3 +64,6 @@ See [v9fs documentation](https://www.kernel.org/doc/Documentation/filesystems/9p
 ## License
 rust-9p is distributed under the BSD 3-Clause License.
 See LICENSE for details.
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fpfpacket%2Frust-9p.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fpfpacket%2Frust-9p?ref=badge_large)
