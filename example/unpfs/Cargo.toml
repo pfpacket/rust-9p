@@ -12,7 +12,7 @@ name = "unpfs"
 nix = "^0"
 env_logger = "^0"
 filetime = "^0"
-tokio = { version = "^1.0", features = ["full"] }
+tokio = { version = "^1.18", features = ["full"] }
 tokio-stream = { version = "^0.1", features = ["fs"] }
 async-trait = "^0.1"
 futures = "^0.3"
