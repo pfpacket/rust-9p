@@ -392,8 +392,12 @@ impl Filesystem for Unpfs {
 
 async fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
     if args.len() < 3 {
-        eprintln!("Usage: {} proto!address!port mountpoint", args[0]);
-        eprintln!("  where: proto = tcp | unix");
+        eprintln!("Usage: {} <proto!address!port> <mountpoint>", args[0]);
+        eprintln!("  where: proto = tcp | unix | fd");
+        eprintln!("Examples:");
+        eprintln!("  {} 'tcp!0.0.0.0!564' /path/to/export", args[0]);
+        eprintln!("  {} 'unix!/tmp/unpfs.socket!0' /path/to/export", args[0]);
+        eprintln!("  {} 'fd!0!1' /path/to/export", args[0]);
         return Ok(-1);
     }
 
@@ -402,7 +406,7 @@ async fn unpfs_main(args: Vec<String>) -> rs9p::Result<i32> {
         return res!(io_err!(Other, "mount point must be a directory"));
     }
 
-    println!("[*] Ready to accept clients: {}", addr);
+    eprintln!("[*] About to accept clients: {}", addr);
     srv_async(
         Unpfs {
             realroot: mountpoint,

@@ -39,7 +39,13 @@ cargo run --release 'tcp!0.0.0.0!564' /exportdir
 #  port number is a suffix to the unix domain socket
 #  'unix!/tmp/unpfs-socket!n' creates `/tmp/unpfs-socket:n`
 cargo run --release 'unix!/tmp/unpfs-socket!0' /exportdir
+
+# File descriptors (cannot be used directly; see
+# example/unpfs/fd-mount.py for a use of this)
+cargo build --release
+./target/release/unpfs 'fd!0!1' /exportdir
 ```
+
 You are now ready to import/mount the remote filesystem.
 Let's mount it at `/mountdir`:
 
@@ -48,6 +54,8 @@ Let's mount it at `/mountdir`:
 sudo mount -t 9p -o version=9p2000.L,trans=tcp,port=564,uname=$USER 127.0.0.1 /mountdir
 # Unix domain socket
 sudo mount -t 9p -o version=9p2000.L,trans=unix,uname=$USER /tmp/unpfs-socket:0 /mountdir
+# File descriptors: see example/unpfs/fd-mount.py
+# for a working example.
 ```
 
 | Mount option | Value |
