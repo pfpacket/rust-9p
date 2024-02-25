@@ -9,12 +9,12 @@ use {
         error::errno::*,
         fcall::*,
         serialize,
-        utils::{self, Result},
+        utils::{self, Result, AddrSpec},
     },
     async_trait::async_trait,
     bytes::buf::{Buf, BufMut},
     futures::sink::SinkExt,
-    std::{collections::HashMap, sync::Arc},
+    std::{collections::HashMap, sync::Arc, str::FromStr, os::fd::FromRawFd},
     tokio::{
         io::{AsyncRead, AsyncWrite},
         net::{TcpListener, UnixListener},
@@ -396,14 +396,15 @@ where
 
     loop {
         let (stream, peer) = listener.accept().await?;
-        info!("accepted: {:?}", peer);
+        info!("Accepted TCP peer: {:?}", peer);
 
         let fs = filesystem.clone();
         tokio::spawn(async move {
             let (readhalf, writehalf) = stream.into_split();
-            let res = dispatch(fs, readhalf, writehalf).await;
-            if let Err(e) = res {
-                error!("Error: {}: {:?}", e, e);
+            if let Err(e) = dispatch(fs, readhalf, writehalf).await {
+                error!("Error with TCP peer {:?}: {:?}", peer, e);
+            } else {
+                info!("TCP peer {:?} now disconnected", peer);
             }
         });
     }
@@ -417,16 +418,38 @@ where
 
     loop {
         let (stream, peer) = listener.accept().await?;
-        info!("accepted: {:?}", peer);
+        info!("Accepted UNIX peer: {:?}", peer);
 
         let fs = filesystem.clone();
         tokio::spawn(async move {
             let (readhalf, writehalf) = tokio::io::split(stream);
-            let res = dispatch(fs, readhalf, writehalf).await;
-            if let Err(e) = res {
-                error!("Error: {:?}", e);
+            if let Err(e) = dispatch(fs, readhalf, writehalf).await {
+                error!("Error with UNIX peer {:?}: {:?}", peer, e);
+            } else {
+                info!("UNIX peer {:?} now disconnected", peer);
             }
         });
+    }
+}
+
+pub async fn srv_once_fd<Fs>(filesystem: Fs, readfd: i32, writefd: i32) -> Result<()>
+where
+    Fs: 'static + Filesystem + Send + Sync + Clone,
+{
+    let readhalf: tokio::fs::File;
+    let writehalf: tokio::fs::File;
+    unsafe {
+        readhalf = tokio::fs::File::from_raw_fd(readfd);
+        writehalf = tokio::fs::File::from_raw_fd(writefd);
+    }
+    info!("Accepted FD pair peer: {:?},{:?}", readfd, writefd);
+    let fs = filesystem.clone();
+    if let Err(e) = dispatch(fs, readhalf, writehalf).await {
+        error!("Error with FD pair peer {:?},{:?}: {:?}", readfd, writefd, e);
+        Err(e)
+    } else {
+        info!("FD pair peer {:?},{:?} now disconnected", readfd, writefd);
+        Ok(())
     }
 }
 
@@ -434,12 +457,17 @@ pub async fn srv_async<Fs>(filesystem: Fs, addr: &str) -> Result<()>
 where
     Fs: 'static + Filesystem + Send + Sync + Clone,
 {
-    let (proto, listen_addr) = utils::parse_proto(addr)
-        .ok_or_else(|| io_err!(InvalidInput, "Invalid protocol or address"))?;
+    let proto = match utils::AddrSpec::from_str(addr) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("error: {}", e);
+            return Err(error::Error::No(nix::errno::Errno::EINVAL));
+        },
+    };
 
     match proto {
-        "tcp" => srv_async_tcp(filesystem, &listen_addr).await,
-        "unix" => srv_async_unix(filesystem, &listen_addr).await,
-        _ => Err(From::from(io_err!(InvalidInput, "Protocol not supported"))),
+        AddrSpec::Tcp(listen_addr) => srv_async_tcp(filesystem, listen_addr.as_str()).await,
+        AddrSpec::Unix(listen_addr) => srv_async_unix(filesystem, listen_addr.as_str()).await,
+        AddrSpec::Fd(readfd, writefd) => srv_once_fd(filesystem, readfd, writefd).await,
     }
 }

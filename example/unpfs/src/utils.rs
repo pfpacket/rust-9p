@@ -27,6 +27,8 @@ macro_rules! INVALID_FID {
 
 pub fn create_buffer(size: usize) -> Vec<u8> {
     let mut buffer = Vec::with_capacity(size);
+    // https://rust-lang.github.io/rust-clippy/master/index.html#/uninit_vec
+    let _remaining = buffer.spare_capacity_mut();
     unsafe {
         buffer.set_len(size);
     }
